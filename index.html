@@ -28,6 +28,7 @@
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body class="bg-navy-50 text-navy-900 font-sans antialiased">
+  <!-- Auth overlay -->
   <div id="auth-overlay" class="fixed inset-0 bg-navy-900/80 backdrop-blur-sm z-50 flex items-center justify-center hidden">
     <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
       <div class="text-center mb-6">
@@ -44,6 +45,8 @@
       <p id="auth-message" class="text-sm text-center mt-4 text-red-600 hidden"></p>
     </div>
   </div>
+
+  <!-- Sidebar -->
   <aside class="fixed inset-y-0 left-0 w-64 bg-navy-900 text-white flex flex-col z-20">
     <div class="p-6 border-b border-white/10">
       <div class="flex items-center gap-3">
@@ -55,18 +58,39 @@
       </div>
     </div>
     <nav class="flex-1 p-4 space-y-1">
-      <button data-view="dashboard" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">▣</span> Dashboard</button>
-      <button data-view="mentees" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">◉</span> Mentees</button>
-      <button data-view="checkin" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">✎</span> New Check-In</button>
-      <button data-view="escalation" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">⚑</span> Escalation</button>
-      <button data-view="graduation" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">★</span> Graduation</button>
-      <button data-view="feedback" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">💬</span> Mentor Feedback</button>
-      <button data-view="kickoff" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">🚀</span> Kickoff</button>
-      <button data-view="commitments" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition"><span class="text-lg">📌</span> Commitments</button>
+      <button data-view="dashboard" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">▣</span> Dashboard
+      </button>
+      <button data-view="mentees" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">◉</span> Mentees
+      </button>
+      <button data-view="checkin" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">✎</span> New Check-In
+      </button>
+      <button data-view="escalation" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">⚑</span> Escalation
+      </button>
+      <button data-view="graduation" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">★</span> Graduation
+      </button>
+      <button data-view="feedback" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">💬</span> Mentor Feedback
+      </button>
+      <button data-view="kickoff" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">🚀</span> Kickoff
+      </button>
+      <button data-view="commitments" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+        <span class="text-lg">📌</span> Commitments
+      </button>
     </nav>
-    <div class="p-4 border-t border-white/10 text-xs text-white/40">AXEN Xcelerate University<br>Mentor Toolkit</div>
+    <div class="p-4 border-t border-white/10 text-xs text-white/40">
+      AXEN Xcelerate University<br>Mentor Toolkit
+    </div>
   </aside>
+
+  <!-- Main -->
   <main class="ml-64 min-h-screen">
+    <!-- Top bar -->
     <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-navy-100 px-8 py-4 flex items-center justify-between">
       <div>
         <h1 id="page-title" class="font-display text-2xl text-navy-900">Dashboard</h1>
@@ -77,9 +101,13 @@
         <button id="add-mentee-btn" class="text-sm px-4 py-2 rounded-lg bg-gold-500 hover:bg-gold-600 text-navy-900 font-medium transition">+ Add Mentee</button>
       </div>
     </header>
+
     <div id="app" class="p-8 max-w-7xl mx-auto"></div>
   </main>
+
+  <!-- Modal container -->
   <div id="modal-root"></div>
+
   <script src="js/app.js"></script>
 </body>
 </html>
