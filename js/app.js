@@ -2,36 +2,89 @@
 const SUPABASE_URL = 'https://chcmdibksurpfozbysqj.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoY21kaWJrc3VycGZvemJ5c3FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5Mjk4OTQsImV4cCI6MjEwNzUwNTg5NH0.O6qpMcI1f6venAH51BPmi78WSxDgisSU2KbJNJKjoWg';
 
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let state = {
-  mentees: [],
-  checkIns: [],
-  escalations: [],
-  graduations: [],
-  kickoffs: [],
-  feedback: [],
-  currentView: 'dashboard',
-  user: null
-};
+function emptyState() {
+  return {
+    mentees: [],
+    checkIns: [],
+    escalations: [],
+    graduations: [],
+    kickoffs: [],
+    feedback: [],
+    currentView: 'dashboard',
+    selectedMenteeId: null,
+    prefillMenteeId: null,
+    user: null
+  };
+}
+
+let state = emptyState();
 
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
-function uid() {
-  return crypto.randomUUID();
+// HTML-escape any value before interpolating it into innerHTML / template strings.
+function esc(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
+
+// Show an error to the user. Always logs to the console as well.
+function reportError(err) {
+  console.error(err);
+  const message = (err && err.message) ? err.message : String(err);
+  alert(message);
+}
+
+// Throw if a Supabase response carries an error.
+function throwIfError(error, what) {
+  if (error) throw new Error(`${what}: ${error.message}`);
+}
+
+// Run a form submission: disables the submit button while working and reports
+// any error without navigating away. `fn` should only navigate after every
+// save/load step succeeded.
+async function runSubmit(form, fn) {
+  const btn = form.querySelector('[type="submit"]');
+  if (btn) btn.disabled = true;
+  try {
+    await fn();
+  } catch (err) {
+    reportError(err);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Data access
+// ---------------------------------------------------------------------------
 
 async function loadFromSupabase() {
   if (!state.user) return;
-  const { data: mentees } = await supabase.from('mentees').select('*').order('created_at', { ascending: false });
-  const { data: checkIns } = await supabase.from('check_ins').select('*').order('date', { ascending: false });
-  const { data: escalations } = await supabase.from('escalations').select('*').order('created_at', { ascending: false });
-  const { data: graduations } = await supabase.from('graduation_recommendations').select('*').order('created_at', { ascending: false });
-  const { data: feedback } = await supabase.from('mentor_feedback').select('*').order('date', { ascending: false });
-  const { data: kickoffs } = await supabase.from('kickoff_sessions').select('*').order('date_time', { ascending: false });
-  state.mentees = (mentees || []).map(m => ({
+  const [menteesRes, checkInsRes, escalationsRes, graduationsRes, feedbackRes, kickoffsRes] = await Promise.all([
+    supabaseClient.from('mentees').select('*').order('created_at', { ascending: false }),
+    supabaseClient.from('check_ins').select('*').order('date', { ascending: false }),
+    supabaseClient.from('escalations').select('*').order('created_at', { ascending: false }),
+    supabaseClient.from('graduation_recommendations').select('*').order('created_at', { ascending: false }),
+    supabaseClient.from('mentor_feedback').select('*').order('date', { ascending: false }),
+    supabaseClient.from('kickoff_sessions').select('*').order('date_time', { ascending: false })
+  ]);
+  throwIfError(menteesRes.error, 'Could not load mentees');
+  throwIfError(checkInsRes.error, 'Could not load check-ins');
+  throwIfError(escalationsRes.error, 'Could not load escalations');
+  throwIfError(graduationsRes.error, 'Could not load graduation recommendations');
+  throwIfError(feedbackRes.error, 'Could not load mentor feedback');
+  throwIfError(kickoffsRes.error, 'Could not load kickoff sessions');
+
+  state.mentees = (menteesRes.data || []).map(m => ({
     id: m.id,
     fullName: m.full_name,
     email: m.email,
@@ -43,31 +96,43 @@ async function loadFromSupabase() {
     createdAt: m.created_at,
     updatedAt: m.updated_at
   }));
-  state.checkIns = (checkIns || []).map(c => ({
+  state.checkIns = (checkInsRes.data || []).map(c => ({
     id: c.id,
     menteeId: c.mentee_id,
     checkInNumber: c.check_in_number,
     date: c.date,
+    stageAtTime: c.stage_at_time,
+    meetingFormat: c.meeting_format,
     leadGenerationActivity: c.lead_generation_activity,
     lightSpeedVtProgress: c.light_speed_vt_progress,
     loftyCrmUsage: c.lofty_crm_usage,
     transactionsInPipeline: c.transactions_in_pipeline,
     totalClosed: c.total_closed,
     generalAssessmentNotes: c.general_assessment_notes,
+    specificDirectionGiven: c.specific_direction_given,
+    priorCommitmentStatus: c.prior_commitment_status,
+    verificationNotes: c.verification_notes,
+    topicsDiscussed: c.topics_discussed,
+    keyCoachingPoints: c.key_coaching_points,
     studentCommitment: c.student_commitment,
+    commitmentDueDate: c.commitment_due_date,
     escalationFlag: c.escalation_flag,
+    escalationNotes: c.escalation_notes,
+    nextCheckInDate: c.next_check_in_date,
+    nextCheckInFormat: c.next_check_in_format,
     createdAt: c.created_at
   }));
-  state.escalations = escalations || [];
-  state.graduations = graduations || [];
-  state.feedback = feedback || [];
-  state.kickoffs = kickoffs || [];
+  state.escalations = escalationsRes.data || [];
+  state.graduations = graduationsRes.data || [];
+  state.feedback = feedbackRes.data || [];
+  state.kickoffs = kickoffsRes.data || [];
   render();
 }
 
+// Inserts when the mentee has no database id yet, otherwise updates.
+// On insert, the database-generated id is written back onto `mentee.id`.
 async function saveMentee(mentee) {
   const payload = {
-    user_id: state.user.id,
     full_name: mentee.fullName,
     email: mentee.email,
     phone: mentee.phone,
@@ -76,12 +141,18 @@ async function saveMentee(mentee) {
     status: mentee.status,
     notes: mentee.notes
   };
-  if (mentee.id && mentee.id.length > 20) {
-    await supabase.from('mentees').update(payload).eq('id', mentee.id);
+  if (mentee.id) {
+    payload.updated_at = new Date().toISOString();
+    const { error } = await supabaseClient.from('mentees').update(payload).eq('id', mentee.id);
+    throwIfError(error, 'Could not update mentee');
   } else {
-    const { data } = await supabase.from('mentees').insert(payload).select().single();
-    if (data) mentee.id = data.id;
+    payload.user_id = state.user.id;
+    const { data, error } = await supabaseClient.from('mentees').insert(payload).select().single();
+    throwIfError(error, 'Could not create mentee');
+    if (!data || !data.id) throw new Error('Could not create mentee: no id was returned');
+    mentee.id = data.id;
   }
+  return mentee;
 }
 
 async function saveCheckIn(checkIn) {
@@ -90,16 +161,28 @@ async function saveCheckIn(checkIn) {
     mentee_id: checkIn.menteeId,
     check_in_number: checkIn.checkInNumber,
     date: checkIn.date,
+    stage_at_time: checkIn.stageAtTime,
+    meeting_format: checkIn.meetingFormat,
     lead_generation_activity: checkIn.leadGenerationActivity,
     light_speed_vt_progress: checkIn.lightSpeedVtProgress,
     lofty_crm_usage: checkIn.loftyCrmUsage,
     transactions_in_pipeline: checkIn.transactionsInPipeline,
     total_closed: checkIn.totalClosed,
     general_assessment_notes: checkIn.generalAssessmentNotes,
+    specific_direction_given: checkIn.specificDirectionGiven,
+    prior_commitment_status: checkIn.priorCommitmentStatus,
+    verification_notes: checkIn.verificationNotes,
+    topics_discussed: checkIn.topicsDiscussed,
+    key_coaching_points: checkIn.keyCoachingPoints,
     student_commitment: checkIn.studentCommitment,
-    escalation_flag: checkIn.escalationFlag
+    commitment_due_date: checkIn.commitmentDueDate,
+    escalation_flag: checkIn.escalationFlag,
+    escalation_notes: checkIn.escalationNotes,
+    next_check_in_date: checkIn.nextCheckInDate,
+    next_check_in_format: checkIn.nextCheckInFormat
   };
-  await supabase.from('check_ins').insert(payload);
+  const { error } = await supabaseClient.from('check_ins').insert(payload);
+  throwIfError(error, 'Could not save check-in');
 }
 
 async function saveFeedback(fb) {
@@ -115,7 +198,8 @@ async function saveFeedback(fb) {
     overall_rating: fb.overallRating,
     private_notes: fb.privateNotes
   };
-  await supabase.from('mentor_feedback').insert(payload);
+  const { error } = await supabaseClient.from('mentor_feedback').insert(payload);
+  throwIfError(error, 'Could not save feedback');
 }
 
 async function saveKickoff(k) {
@@ -131,65 +215,199 @@ async function saveKickoff(k) {
     initial_commitment: k.initialCommitment,
     next_check_in_date: k.nextCheckInDate
   };
-  await supabase.from('kickoff_sessions').insert(payload);
+  const { error } = await supabaseClient.from('kickoff_sessions').insert(payload);
+  throwIfError(error, 'Could not save kickoff session');
 }
 
-// Auth UI
+async function saveEscalation(escalation) {
+  const payload = {
+    user_id: state.user.id,
+    mentee_id: escalation.menteeId,
+    date_of_submission: escalation.dateOfSubmission,
+    student_program_stage: escalation.studentProgramStage,
+    escalation_type: escalation.escalationType,
+    situation_summary: escalation.situationSummary,
+    actions_already_taken: escalation.actionsAlreadyTaken,
+    recommended_next_step: escalation.recommendedNextStep,
+    additional_context: escalation.additionalContext,
+    status: 'submitted'
+  };
+  const { error } = await supabaseClient.from('escalations').insert(payload);
+  throwIfError(error, 'Could not save escalation');
+}
+
+async function saveGraduation(grad) {
+  const payload = {
+    user_id: state.user.id,
+    mentee_id: grad.menteeId,
+    date_of_submission: grad.dateOfSubmission,
+    program_start_date: grad.programStartDate,
+    closed_transactions_confirmed: grad.closedTransactionsConfirmed,
+    light_speed_vt_completed: grad.lightSpeedVtCompleted,
+    nexa_lending_connected: grad.nexaLendingConnected,
+    lofty_crm_proficient: grad.loftyCrmProficient,
+    mentor_recommends: grad.mentorRecommends,
+    closed_transactions: grad.closedTransactions,
+    mentor_recommendation_statement: grad.mentorRecommendationStatement,
+    status: 'submitted'
+  };
+  const { error } = await supabaseClient.from('graduation_recommendations').insert(payload);
+  throwIfError(error, 'Could not save graduation recommendation');
+}
+
+// ---------------------------------------------------------------------------
+// Auth
+// ---------------------------------------------------------------------------
+
 const authOverlay = document.getElementById('auth-overlay');
 const authForm = document.getElementById('auth-form');
 const authToggle = document.getElementById('auth-toggle');
 const authMessage = document.getElementById('auth-message');
+const signOutBtn = document.getElementById('signout-btn');
 let isSignUp = false;
+let loadedUserId = null;
+
+function showAuthMessage(text, kind = 'error') {
+  authMessage.textContent = text;
+  authMessage.classList.toggle('text-red-600', kind === 'error');
+  authMessage.classList.toggle('text-emerald-700', kind === 'info');
+  authMessage.classList.remove('hidden');
+}
+
+function hideAuthMessage() {
+  authMessage.classList.add('hidden');
+}
+
+function renderLoadError(err) {
+  const message = (err && err.message) ? err.message : String(err);
+  app.innerHTML = `
+    <div class="card p-6 border border-red-200">
+      <div class="font-medium text-red-700">Could not load your data</div>
+      <div class="text-sm mt-2 text-navy-700/80">${esc(message)}</div>
+      <button type="button" onclick="retryLoad()" class="mt-4 text-sm px-4 py-2 rounded-lg border border-navy-200">Retry</button>
+    </div>
+  `;
+}
+
+async function retryLoad() {
+  try {
+    await loadFromSupabase();
+  } catch (err) {
+    reportError(err);
+    renderLoadError(err);
+  }
+}
+
+// Enter the app for a confirmed session. Safe to call repeatedly; data is only
+// loaded once per signed-in user.
+async function enterApp(session) {
+  if (!session || !session.user) return;
+  state.user = session.user;
+  authOverlay.classList.add('hidden');
+  signOutBtn.classList.remove('hidden');
+  hideAuthMessage();
+  if (loadedUserId === session.user.id) return;
+  loadedUserId = session.user.id;
+  try {
+    await loadFromSupabase();
+  } catch (err) {
+    reportError(err);
+    renderLoadError(err);
+  }
+}
+
+function leaveApp() {
+  state = emptyState();
+  loadedUserId = null;
+  document.getElementById('modal-root').innerHTML = '';
+  document.getElementById('auth-password').value = '';
+  signOutBtn.classList.add('hidden');
+  authOverlay.classList.remove('hidden');
+  render();
+}
 
 authToggle.onclick = () => {
   isSignUp = !isSignUp;
   document.getElementById('auth-submit').textContent = isSignUp ? 'Create Account' : 'Sign In';
   authToggle.textContent = isSignUp ? 'Already have an account? Sign in' : 'Need an account? Sign up';
-  authMessage.classList.add('hidden');
+  hideAuthMessage();
 };
 
 authForm.onsubmit = async (e) => {
   e.preventDefault();
   const email = document.getElementById('auth-email').value;
   const password = document.getElementById('auth-password').value;
-  authMessage.classList.add('hidden');
-  let result;
-  if (isSignUp) {
-    result = await supabase.auth.signUp({ email, password });
-  } else {
-    result = await supabase.auth.signInWithPassword({ email, password });
-  }
-  if (result.error) {
-    authMessage.textContent = result.error.message;
-    authMessage.classList.remove('hidden');
-  } else if (result.data.user) {
-    state.user = result.data.user;
-    authOverlay.classList.add('hidden');
-    await loadFromSupabase();
+  const submitBtn = document.getElementById('auth-submit');
+  hideAuthMessage();
+  submitBtn.disabled = true;
+  try {
+    const result = isSignUp
+      ? await supabaseClient.auth.signUp({ email, password })
+      : await supabaseClient.auth.signInWithPassword({ email, password });
+    if (result.error) {
+      showAuthMessage(result.error.message);
+      return;
+    }
+    const session = result.data && result.data.session;
+    if (session) {
+      await enterApp(session);
+    } else if (isSignUp && result.data && result.data.user) {
+      // Email confirmation is required: no session until the link is clicked.
+      showAuthMessage('Account created. Check your email to confirm your account, then sign in.', 'info');
+    } else {
+      showAuthMessage('Sign-in did not return a session. Please try again.');
+    }
+  } catch (err) {
+    showAuthMessage(err.message || String(err));
+  } finally {
+    submitBtn.disabled = false;
   }
 };
 
+signOutBtn.onclick = async () => {
+  signOutBtn.disabled = true;
+  try {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      reportError(new Error(`Could not sign out: ${error.message}`));
+      return;
+    }
+    leaveApp();
+  } finally {
+    signOutBtn.disabled = false;
+  }
+};
+
+// Keep the UI in sync with auth state (token refresh, sign-out in another tab,
+// confirmed session restored, etc.). Supabase calls are deferred out of the
+// callback to avoid blocking the auth client.
+supabaseClient.auth.onAuthStateChange((event, session) => {
+  setTimeout(() => {
+    if (session && session.user) {
+      enterApp(session);
+    } else if (event === 'SIGNED_OUT' || state.user) {
+      leaveApp();
+    }
+  }, 0);
+});
+
 // Check existing session
-supabase.auth.getSession().then(({ data: { session } }) => {
-  if (session) {
-    state.user = session.user;
-    authOverlay.classList.add('hidden');
-    loadFromSupabase();
+supabaseClient.auth.getSession().then(({ data, error }) => {
+  if (error) {
+    showAuthMessage(`Could not restore session: ${error.message}`);
+    authOverlay.classList.remove('hidden');
+    return;
+  }
+  if (data && data.session) {
+    enterApp(data.session);
   } else {
     authOverlay.classList.remove('hidden');
   }
 });
 
-function saveState() {
-  // no-op; persistence is via Supabase
-}
-
-function loadState() {
-  return state;
-}
-
-// Rest of the original app logic continues below...
-
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function daysInProgram(start) {
   if (!start) return 0;
@@ -302,25 +520,25 @@ function renderDashboard() {
     const score = avgScore(m.id);
     const days = daysInProgram(m.programStartDate);
     html += `
-      <div class="card p-6 cursor-pointer" onclick="openMentee('${m.id}')">
+      <div class="card p-6 cursor-pointer" data-mentee-id="${esc(m.id)}" onclick="openMentee(this.dataset.menteeId)">
         <div class="flex items-start justify-between">
           <div>
-            <div class="font-semibold text-lg">${m.fullName}</div>
-            <div class="text-sm text-navy-700/60 mt-0.5">Stage ${m.currentStage || '—'} · ${days} days · Target ${stageTarget(m.currentStage)} closed</div>
+            <div class="font-semibold text-lg">${esc(m.fullName)}</div>
+            <div class="text-sm text-navy-700/60 mt-0.5">Stage ${esc(m.currentStage) || '—'} · ${days} days · Target ${esc(stageTarget(m.currentStage))} closed</div>
           </div>
-          <span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}">${m.status}</span>
+          <span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}">${esc(m.status)}</span>
         </div>
         <div class="mt-5 flex items-center gap-4">
-          ${score ? `<div class="score-pill score-${Math.round(score)}">${score}</div>` : '<div class="text-sm text-navy-700/40">No scores yet</div>'}
+          ${score ? `<div class="score-pill score-${Math.round(score)}">${esc(score)}</div>` : '<div class="text-sm text-navy-700/40">No scores yet</div>'}
           <div class="text-sm text-navy-700/70">
-            ${latest ? `Last check-in ${formatDate(latest.date)}` : 'No check-ins'}
+            ${latest ? `Last check-in ${esc(formatDate(latest.date))}` : 'No check-ins'}
           </div>
         </div>
         ${latest ? `
           <div class="mt-4 grid grid-cols-3 gap-2 text-xs">
-            <div class="text-center"><div class="text-navy-700/50">Lead Gen</div><div class="font-medium">${latest.leadGenerationActivity || '—'}${trendArrow(latest.leadGenerationActivity, prev && prev.leadGenerationActivity)}</div></div>
-            <div class="text-center"><div class="text-navy-700/50">VT</div><div class="font-medium">${latest.lightSpeedVtProgress || '—'}${trendArrow(latest.lightSpeedVtProgress, prev && prev.lightSpeedVtProgress)}</div></div>
-            <div class="text-center"><div class="text-navy-700/50">CRM</div><div class="font-medium">${latest.loftyCrmUsage || '—'}${trendArrow(latest.loftyCrmUsage, prev && prev.loftyCrmUsage)}</div></div>
+            <div class="text-center"><div class="text-navy-700/50">Lead Gen</div><div class="font-medium">${esc(latest.leadGenerationActivity) || '—'}${trendArrow(latest.leadGenerationActivity, prev && prev.leadGenerationActivity)}</div></div>
+            <div class="text-center"><div class="text-navy-700/50">VT</div><div class="font-medium">${esc(latest.lightSpeedVtProgress) || '—'}${trendArrow(latest.lightSpeedVtProgress, prev && prev.lightSpeedVtProgress)}</div></div>
+            <div class="text-center"><div class="text-navy-700/50">CRM</div><div class="font-medium">${esc(latest.loftyCrmUsage) || '—'}${trendArrow(latest.loftyCrmUsage, prev && prev.loftyCrmUsage)}</div></div>
           </div>
         ` : ''}
       </div>
@@ -354,10 +572,10 @@ function renderDashboard() {
       dueEl.innerHTML = due.map(x => `
         <div class="card p-4 mb-3 flex items-center justify-between">
           <div>
-            <div class="font-medium">${x.mentee.fullName}</div>
+            <div class="font-medium">${esc(x.mentee.fullName)}</div>
             <div class="text-sm text-navy-700/60">${x.daysSince === null ? 'No feedback yet' : `Last feedback ${x.daysSince} days ago`}</div>
           </div>
-          <button onclick="state.currentView='feedback'; state.prefillMenteeId='${x.mentee.id}'; render()" class="text-sm px-4 py-2 rounded-lg bg-gold-500 text-navy-900 font-medium">Give Feedback</button>
+          <button data-mentee-id="${esc(x.mentee.id)}" onclick="state.currentView='feedback'; state.prefillMenteeId=this.dataset.menteeId; render()" class="text-sm px-4 py-2 rounded-lg bg-gold-500 text-navy-900 font-medium">Give Feedback</button>
         </div>
       `).join('');
     }
@@ -380,6 +598,8 @@ function filterMentees() {
     card.style.display = matchQ && matchS ? '' : 'none';
   });
 }
+
+function statusClass(status) {
   const map = {
     active: 'bg-emerald-100 text-emerald-800',
     paused: 'bg-amber-100 text-amber-800',
@@ -393,6 +613,11 @@ function filterMentees() {
 function formatDate(d) {
   if (!d) return '—';
   return new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatDateTime(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function openMentee(id) {
@@ -424,20 +649,57 @@ function renderCommitments() {
     html += `
       <div class="card p-4 flex justify-between items-start">
         <div>
-          <div class="font-medium">${i.mentee}</div>
-          <div class="text-sm mt-1">${i.commitment}</div>
-          <div class="text-xs text-navy-700/50 mt-1">From check-in ${formatDate(i.date)}${i.due ? ` · Due ${formatDate(i.due)}` : ''}</div>
+          <div class="font-medium">${esc(i.mentee)}</div>
+          <div class="text-sm mt-1">${esc(i.commitment)}</div>
+          <div class="text-xs text-navy-700/50 mt-1">From check-in ${esc(formatDate(i.date))}${i.due ? ` · Due ${esc(formatDate(i.due))}` : ''}</div>
         </div>
-        ${i.status ? `<span class="text-xs px-2 py-1 rounded-full bg-navy-100">${i.status}</span>` : ''}
+        ${i.status ? `<span class="text-xs px-2 py-1 rounded-full bg-navy-100">${esc(i.status)}</span>` : ''}
       </div>
     `;
   });
   html += `</div>`;
   app.innerHTML = html;
 }
+
+function renderMentees() {
   titleEl.textContent = 'Mentees';
   subtitleEl.textContent = 'All students in the program';
   renderDashboard(); // reuse for now
+}
+
+// One labelled line for the check-in history; omitted when the value is empty.
+function detailLine(label, value) {
+  if (value === null || value === undefined || value === '') return '';
+  return `<div class="text-sm mt-1"><span class="text-navy-700/50">${esc(label)}:</span> ${esc(value)}</div>`;
+}
+
+const PRIOR_COMMITMENT_LABELS = { yes: 'Fully completed', partial: 'Partially completed', not: 'Not completed' };
+
+function renderKickoffs(menteeId) {
+  const kickoffs = (state.kickoffs || [])
+    .filter(k => k.mentee_id === menteeId)
+    .sort((a, b) => new Date(b.date_time || b.created_at) - new Date(a.date_time || a.created_at));
+  if (!kickoffs.length) {
+    return `<div class="card p-6 text-sm text-navy-700/50">No kickoff session recorded yet.</div>`;
+  }
+  return kickoffs.map(k => {
+    const systems = Array.isArray(k.systems_activated) ? k.systems_activated : [];
+    const link = k.meeting_link && /^https?:\/\//i.test(k.meeting_link)
+      ? `<div class="text-sm mt-1"><span class="text-navy-700/50">Meeting link:</span> <a href="${esc(k.meeting_link)}" target="_blank" rel="noopener noreferrer" class="underline">${esc(k.meeting_link)}</a></div>`
+      : detailLine('Meeting link', k.meeting_link);
+    return `
+      <div class="card p-5">
+        <div class="font-medium mb-2">Kickoff · ${esc(formatDateTime(k.date_time))}</div>
+        <div class="text-sm mt-1"><span class="text-navy-700/50">Systems activated:</span> ${systems.length ? systems.map(s => `<span class="inline-block text-xs px-2 py-0.5 rounded-full bg-navy-100 mr-1">${esc(s)}</span>`).join('') : '—'}</div>
+        ${detailLine('Check-in cadence', k.agreed_check_in_cadence)}
+        ${detailLine('Initial commitment', k.initial_commitment)}
+        ${k.next_check_in_date ? detailLine('Next check-in', formatDate(k.next_check_in_date)) : ''}
+        ${link}
+        ${detailLine('Student’s why', k.student_why_notes)}
+        ${detailLine('Expectations covered', k.expectations_notes)}
+      </div>
+    `;
+  }).join('');
 }
 
 function renderMenteeDetail(id) {
@@ -459,15 +721,15 @@ function renderMenteeDetail(id) {
         <div class="card p-6">
           <h3 class="font-medium mb-4">Profile</h3>
           <div class="space-y-3 text-sm">
-            <div><span class="text-navy-700/50">Email</span><div>${m.email || '—'}</div></div>
-            <div><span class="text-navy-700/50">Phone</span><div>${m.phone || '—'}</div></div>
-            <div><span class="text-navy-700/50">Status</span><div class="mt-1"><span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}">${m.status}</span></div></div>
+            <div><span class="text-navy-700/50">Email</span><div>${esc(m.email) || '—'}</div></div>
+            <div><span class="text-navy-700/50">Phone</span><div>${esc(m.phone) || '—'}</div></div>
+            <div><span class="text-navy-700/50">Status</span><div class="mt-1"><span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}">${esc(m.status)}</span></div></div>
             <div><span class="text-navy-700/50">Days in program</span><div>${daysInProgram(m.programStartDate)}</div></div>
           </div>
-          ${m.notes ? `<div class="mt-4 pt-4 border-t text-sm text-navy-700/80">${m.notes}</div>` : ''}
+          ${m.notes ? `<div class="mt-4 pt-4 border-t text-sm text-navy-700/80">${esc(m.notes)}</div>` : ''}
         </div>
-        <button onclick="state.currentView='checkin'; state.prefillMenteeId='${m.id}'; render()" class="w-full btn-primary py-3 rounded-xl">New Check-In</button>
-        <button onclick="exportMenteePdf('${m.id}')" class="w-full py-2 rounded-xl border text-sm">Export Summary</button>
+        <button data-mentee-id="${esc(m.id)}" onclick="state.currentView='checkin'; state.prefillMenteeId=this.dataset.menteeId; render()" class="w-full btn-primary py-3 rounded-xl">New Check-In</button>
+        <button data-mentee-id="${esc(m.id)}" onclick="exportMenteePdf(this.dataset.menteeId)" class="w-full py-2 rounded-xl border text-sm">Export Summary</button>
         <div class="card p-6">
           <h3 class="font-medium mb-3">Graduation Readiness</h3>
           ${buildReadiness(m, checkIns)}
@@ -477,6 +739,10 @@ function renderMenteeDetail(id) {
         <div class="card p-6">
           <h3 class="section-title text-xl mb-4">Score Trends</h3>
           ${trendChart}
+        </div>
+        <div>
+          <h3 class="section-title text-xl mb-4">Kickoff Sessions</h3>
+          <div class="space-y-4">${renderKickoffs(m.id)}</div>
         </div>
         <div>
           <h3 class="section-title text-xl mb-4">Check-In History</h3>
@@ -490,16 +756,22 @@ function renderMenteeDetail(id) {
       html += `
         <div class="card p-5">
           <div class="flex items-center justify-between mb-3">
-            <div class="font-medium">Check-In #${c.checkInNumber} · ${formatDate(c.date)}</div>
+            <div class="font-medium">Check-In #${esc(c.checkInNumber)} · ${esc(formatDate(c.date))}${c.meetingFormat ? ` · ${esc(c.meetingFormat)}` : ''}</div>
             <div class="flex gap-2">
-              ${c.leadGenerationActivity ? `<span class="score-pill score-${c.leadGenerationActivity}">${c.leadGenerationActivity}</span>` : ''}
-              ${c.lightSpeedVtProgress ? `<span class="score-pill score-${c.lightSpeedVtProgress}">${c.lightSpeedVtProgress}</span>` : ''}
-              ${c.loftyCrmUsage ? `<span class="score-pill score-${c.loftyCrmUsage}">${c.loftyCrmUsage}</span>` : ''}
+              ${c.leadGenerationActivity ? `<span class="score-pill score-${esc(c.leadGenerationActivity)}">${esc(c.leadGenerationActivity)}</span>` : ''}
+              ${c.lightSpeedVtProgress ? `<span class="score-pill score-${esc(c.lightSpeedVtProgress)}">${esc(c.lightSpeedVtProgress)}</span>` : ''}
+              ${c.loftyCrmUsage ? `<span class="score-pill score-${esc(c.loftyCrmUsage)}">${esc(c.loftyCrmUsage)}</span>` : ''}
             </div>
           </div>
-          ${c.studentCommitment ? `<div class="text-sm"><span class="text-navy-700/50">Commitment:</span> ${c.studentCommitment}</div>` : ''}
-          ${c.generalAssessmentNotes ? `<div class="text-sm mt-2 text-navy-700/80">${c.generalAssessmentNotes}</div>` : ''}
-          ${c.escalationFlag ? `<div class="mt-3 text-xs text-red-700 font-medium">⚑ Escalation flagged</div>` : ''}
+          ${c.studentCommitment ? `<div class="text-sm"><span class="text-navy-700/50">Commitment:</span> ${esc(c.studentCommitment)}${c.commitmentDueDate ? ` <span class="text-navy-700/50">(due ${esc(formatDate(c.commitmentDueDate))})</span>` : ''}</div>` : ''}
+          ${c.generalAssessmentNotes ? `<div class="text-sm mt-2 text-navy-700/80">${esc(c.generalAssessmentNotes)}</div>` : ''}
+          ${detailLine('Direction given', c.specificDirectionGiven)}
+          ${detailLine('Prior commitment', PRIOR_COMMITMENT_LABELS[c.priorCommitmentStatus] || c.priorCommitmentStatus)}
+          ${detailLine('Verification', c.verificationNotes)}
+          ${detailLine('Topics discussed', c.topicsDiscussed)}
+          ${detailLine('Key coaching points', c.keyCoachingPoints)}
+          ${c.nextCheckInDate || c.nextCheckInFormat ? detailLine('Next check-in', [c.nextCheckInDate ? formatDate(c.nextCheckInDate) : '', c.nextCheckInFormat || ''].filter(Boolean).join(' · ')) : ''}
+          ${c.escalationFlag ? `<div class="mt-3 text-xs text-red-700 font-medium">⚑ Escalation flagged${c.escalationNotes ? `: ${esc(c.escalationNotes)}` : ''}</div>` : ''}
         </div>
       `;
     });
@@ -524,7 +796,7 @@ function buildReadiness(m, checkIns) {
   return `
     <div class="text-sm mb-2">${doneCount}/${items.length} complete · ${pct}%</div>
     <div class="w-full bg-navy-100 rounded-full h-2 mb-3"><div class="bg-gold-500 h-2 rounded-full" style="width:${pct}%"></div></div>
-    ${items.map(i => `<div class="flex justify-between text-sm py-1 border-b border-navy-50"><span>${i.done ? '✓' : '○'} ${i.label}</span><span class="text-navy-700/50">${i.detail}</span></div>`).join('')}
+    ${items.map(i => `<div class="flex justify-between text-sm py-1 border-b border-navy-50"><span>${i.done ? '✓' : '○'} ${esc(i.label)}</span><span class="text-navy-700/50">${esc(i.detail)}</span></div>`).join('')}
   `;
 }
 
@@ -545,8 +817,8 @@ function buildTrendChart(checkIns) {
   });
   series.forEach(s => {
     const pts = checkIns.map((c, i) => {
-      const val = c[s.key];
-      if (val == null) return null;
+      const val = Number(c[s.key]);
+      if (c[s.key] == null || Number.isNaN(val)) return null;
       const y = h - pad - ((val - 1) / 4) * (h - pad * 2);
       return `${points[i]},${y}`;
     }).filter(Boolean);
@@ -554,8 +826,8 @@ function buildTrendChart(checkIns) {
       svg += `<polyline points="${pts.join(' ')}" fill="none" stroke="${s.color}" stroke-width="2" stroke-linejoin="round"/>`;
     }
     checkIns.forEach((c, i) => {
-      const val = c[s.key];
-      if (val == null) return;
+      const val = Number(c[s.key]);
+      if (c[s.key] == null || Number.isNaN(val)) return;
       const y = h - pad - ((val - 1) / 4) * (h - pad * 2);
       svg += `<circle cx="${points[i]}" cy="${y}" r="3" fill="${s.color}"/>`;
     });
@@ -569,11 +841,17 @@ function buildTrendChart(checkIns) {
 // Forms
 // ---------------------------------------------------------------------------
 
+function menteeOptionsHtml(selectedId) {
+  return state.mentees
+    .map(m => `<option value="${esc(m.id)}" ${selectedId && selectedId === m.id ? 'selected' : ''}>${esc(m.fullName)}</option>`)
+    .join('');
+}
+
 function renderCheckInForm() {
   titleEl.textContent = 'New Check-In';
   subtitleEl.textContent = 'Record a mentor session';
 
-  const menteeOptions = state.mentees.map(m => `<option value="${m.id}" ${state.prefillMenteeId === m.id ? 'selected' : ''}>${m.fullName}</option>`).join('');
+  const menteeOptions = menteeOptionsHtml(state.prefillMenteeId);
 
   app.innerHTML = `
     <form id="checkin-form" class="max-w-3xl space-y-8">
@@ -692,14 +970,15 @@ function renderCheckInForm() {
 
   document.getElementById('checkin-form').onsubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const form = e.target;
+    const fd = new FormData(form);
     const data = Object.fromEntries(fd.entries());
+    const mentee = state.mentees.find(x => x.id === data.menteeId);
     const checkIn = {
-      id: uid(),
       menteeId: data.menteeId,
       checkInNumber: Number(data.checkInNumber) || 1,
       date: data.date,
-      stageAtTime: null,
+      stageAtTime: mentee ? (Number(mentee.currentStage) || null) : null,
       meetingFormat: data.meetingFormat || null,
       leadGenerationActivity: data.leadGenerationActivity ? Number(data.leadGenerationActivity) : null,
       lightSpeedVtProgress: data.lightSpeedVtProgress ? Number(data.lightSpeedVtProgress) : null,
@@ -708,7 +987,6 @@ function renderCheckInForm() {
       totalClosed: data.totalClosed ? Number(data.totalClosed) : null,
       generalAssessmentNotes: data.generalAssessmentNotes || null,
       specificDirectionGiven: data.specificDirectionGiven || null,
-      resourcesDirectedTo: [],
       priorCommitmentStatus: data.priorCommitmentStatus || null,
       verificationNotes: data.verificationNotes || null,
       topicsDiscussed: data.topicsDiscussed || null,
@@ -718,21 +996,19 @@ function renderCheckInForm() {
       escalationFlag: !!data.escalationFlag,
       escalationNotes: data.escalationNotes || null,
       nextCheckInDate: data.nextCheckInDate || null,
-      nextCheckInFormat: data.nextCheckInFormat || null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      nextCheckInFormat: data.nextCheckInFormat || null
     };
-    state.checkIns.push(checkIn);
-    if (checkIn.escalationFlag) {
-      const m = state.mentees.find(x => x.id === checkIn.menteeId);
-      if (m) m.status = 'escalated';
-    }
-    await saveCheckIn(checkIn);
-    await loadFromSupabase();
-    state.currentView = 'mentee';
-    state.selectedMenteeId = checkIn.menteeId;
-    state.prefillMenteeId = null;
-    render();
+    await runSubmit(form, async () => {
+      await saveCheckIn(checkIn);
+      if (checkIn.escalationFlag && mentee && mentee.status !== 'escalated') {
+        await saveMentee({ ...mentee, status: 'escalated' });
+      }
+      await loadFromSupabase();
+      state.currentView = 'mentee';
+      state.selectedMenteeId = checkIn.menteeId;
+      state.prefillMenteeId = null;
+      render();
+    });
   };
 }
 
@@ -752,44 +1028,10 @@ function scoreRow(label, name) {
   `;
 }
 
-async function saveEscalation(esc) {
-  const payload = {
-    user_id: state.user.id,
-    mentee_id: esc.menteeId,
-    date_of_submission: esc.dateOfSubmission,
-    student_program_stage: esc.studentProgramStage,
-    escalation_type: esc.escalationType,
-    situation_summary: esc.situationSummary,
-    actions_already_taken: esc.actionsAlreadyTaken,
-    recommended_next_step: esc.recommendedNextStep,
-    additional_context: esc.additionalContext,
-    status: 'submitted'
-  };
-  await supabase.from('escalations').insert(payload);
-}
-
-async function saveGraduation(grad) {
-  const payload = {
-    user_id: state.user.id,
-    mentee_id: grad.menteeId,
-    date_of_submission: grad.dateOfSubmission,
-    program_start_date: grad.programStartDate,
-    closed_transactions_confirmed: grad.closedTransactionsConfirmed,
-    light_speed_vt_completed: grad.lightSpeedVtCompleted,
-    nexa_lending_connected: grad.nexaLendingConnected,
-    lofty_crm_proficient: grad.loftyCrmProficient,
-    mentor_recommends: grad.mentorRecommends,
-    closed_transactions: grad.closedTransactions,
-    mentor_recommendation_statement: grad.mentorRecommendationStatement,
-    status: 'submitted'
-  };
-  await supabase.from('graduation_recommendations').insert(payload);
-}
-
 function renderEscalationForm() {
   titleEl.textContent = 'Escalation Document';
   subtitleEl.textContent = 'Submit to National Director';
-  const menteeOptions = state.mentees.map(m => `<option value="${m.id}">${m.fullName}</option>`).join('');
+  const menteeOptions = menteeOptionsHtml(null);
   app.innerHTML = `
     <form id="escalation-form" class="max-w-3xl space-y-6">
       <div class="card p-6 space-y-4">
@@ -846,34 +1088,36 @@ function renderEscalationForm() {
   `;
   document.getElementById('escalation-form').onsubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const form = e.target;
+    const fd = new FormData(form);
     const data = Object.fromEntries(fd.entries());
-    const esc = {
+    const escalation = {
       menteeId: data.menteeId,
       dateOfSubmission: data.dateOfSubmission,
       studentProgramStage: data.studentProgramStage || null,
       escalationType: data.escalationType,
       situationSummary: data.situationSummary,
-      actionsAlreadyTaken: data.actionsAlreadyTaken ? data.actionsAlreadyTaken.split('\\n').filter(Boolean) : [],
+      actionsAlreadyTaken: data.actionsAlreadyTaken
+        ? data.actionsAlreadyTaken.split('\n').map(s => s.trim()).filter(Boolean)
+        : [],
       recommendedNextStep: data.recommendedNextStep,
       additionalContext: data.additionalContext || null
     };
-    await saveEscalation(esc);
-    const m = state.mentees.find(x => x.id === esc.menteeId);
-    if (m) {
-      m.status = 'escalated';
-      await saveMentee(m);
-    }
-    await loadFromSupabase();
-    state.currentView = 'dashboard';
-    render();
+    await runSubmit(form, async () => {
+      await saveEscalation(escalation);
+      const m = state.mentees.find(x => x.id === escalation.menteeId);
+      if (m) await saveMentee({ ...m, status: 'escalated' });
+      await loadFromSupabase();
+      state.currentView = 'dashboard';
+      render();
+    });
   };
 }
 
 function renderGraduationForm() {
   titleEl.textContent = 'Graduation Recommendation';
   subtitleEl.textContent = 'Submit when the student is ready';
-  const menteeOptions = state.mentees.map(m => `<option value="${m.id}">${m.fullName}</option>`).join('');
+  const menteeOptions = menteeOptionsHtml(null);
   app.innerHTML = `
     <form id="graduation-form" class="max-w-3xl space-y-6">
       <div class="card p-6 space-y-4">
@@ -917,12 +1161,19 @@ function renderGraduationForm() {
   `;
   document.getElementById('graduation-form').onsubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const form = e.target;
+    const fd = new FormData(form);
     const data = Object.fromEntries(fd.entries());
     const transactions = data.closedTransactions
-      ? data.closedTransactions.split('\\n').filter(Boolean).map(line => {
+      ? data.closedTransactions.split('\n').map(s => s.trim()).filter(Boolean).map(line => {
           const parts = line.split('|').map(p => p.trim());
-          return { propertyAddress: parts[0] || '', closeDate: parts[1] || null, salePrice: parts[2] ? Number(parts[2]) : null, skySlopeFileNumber: parts[3] || null };
+          const price = parts[2] ? Number(parts[2].replace(/[$,\s]/g, '')) : null;
+          return {
+            propertyAddress: parts[0] || '',
+            closeDate: parts[1] || null,
+            salePrice: Number.isFinite(price) ? price : null,
+            skySlopeFileNumber: parts[3] || null
+          };
         })
       : [];
     const grad = {
@@ -937,22 +1188,21 @@ function renderGraduationForm() {
       closedTransactions: transactions,
       mentorRecommendationStatement: data.mentorRecommendationStatement
     };
-    await saveGraduation(grad);
-    const m = state.mentees.find(x => x.id === grad.menteeId);
-    if (m) {
-      m.status = 'graduated';
-      await saveMentee(m);
-    }
-    await loadFromSupabase();
-    state.currentView = 'dashboard';
-    render();
+    await runSubmit(form, async () => {
+      await saveGraduation(grad);
+      const m = state.mentees.find(x => x.id === grad.menteeId);
+      if (m) await saveMentee({ ...m, status: 'graduated' });
+      await loadFromSupabase();
+      state.currentView = 'dashboard';
+      render();
+    });
   };
 }
 
 function renderFeedbackForm() {
   titleEl.textContent = 'Mentor Feedback';
   subtitleEl.textContent = 'Record structured feedback on a mentee';
-  const menteeOptions = state.mentees.map(m => `<option value="${m.id}" ${state.prefillMenteeId === m.id ? 'selected' : ''}>${m.fullName}</option>`).join('');
+  const menteeOptions = menteeOptionsHtml(state.prefillMenteeId);
   app.innerHTML = `
     <form id="feedback-form" class="max-w-3xl space-y-6">
       <div class="card p-6 space-y-4">
@@ -1020,7 +1270,8 @@ function renderFeedbackForm() {
   `;
   document.getElementById('feedback-form').onsubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const form = e.target;
+    const fd = new FormData(form);
     const data = Object.fromEntries(fd.entries());
     const fb = {
       menteeId: data.menteeId,
@@ -1033,20 +1284,20 @@ function renderFeedbackForm() {
       overallRating: data.overallRating ? Number(data.overallRating) : null,
       privateNotes: data.privateNotes || null
     };
-    await saveFeedback(fb);
-    await loadFromSupabase();
-    state.currentView = 'dashboard';
-    render();
-  };
-}
-
+    await runSubmit(form, async () => {
+      await saveFeedback(fb);
+      await loadFromSupabase();
+      state.currentView = 'dashboard';
+      state.prefillMenteeId = null;
+      render();
+    });
   };
 }
 
 function renderKickoffForm() {
   titleEl.textContent = 'Kickoff Session';
   subtitleEl.textContent = 'Capture the starting point and systems setup';
-  const menteeOptions = state.mentees.map(m => `<option value="${m.id}">${m.fullName}</option>`).join('');
+  const menteeOptions = menteeOptionsHtml(null);
   app.innerHTML = `
     <form id="kickoff-form" class="max-w-3xl space-y-6">
       <div class="card p-6 space-y-4">
@@ -1092,7 +1343,8 @@ function renderKickoffForm() {
   `;
   document.getElementById('kickoff-form').onsubmit = async (e) => {
     e.preventDefault();
-    const fd = new FormData(e.target);
+    const form = e.target;
+    const fd = new FormData(form);
     const data = Object.fromEntries(fd.entries());
     const systems = [];
     if (data.sys_lofty) systems.push('Lofty CRM');
@@ -1110,10 +1362,13 @@ function renderKickoffForm() {
       initialCommitment: data.initialCommitment || null,
       nextCheckInDate: data.nextCheckInDate || null
     };
-    await saveKickoff(k);
-    await loadFromSupabase();
-    state.currentView = 'dashboard';
-    render();
+    await runSubmit(form, async () => {
+      await saveKickoff(k);
+      await loadFromSupabase();
+      state.currentView = 'mentee';
+      state.selectedMenteeId = k.menteeId;
+      render();
+    });
   };
 }
 
@@ -1159,9 +1414,10 @@ document.getElementById('add-mentee-btn').onclick = () => {
   `;
   document.getElementById('new-mentee-form').onsubmit = async (e) => {
     e.preventDefault();
-    const data = Object.fromEntries(new FormData(e.target).entries());
+    const form = e.target;
+    const data = Object.fromEntries(new FormData(form).entries());
+    // No `id` here: saveMentee INSERTs and assigns the database id.
     const mentee = {
-      id: uid(),
       fullName: data.fullName.trim(),
       email: data.email || null,
       phone: data.phone || null,
@@ -1170,10 +1426,12 @@ document.getElementById('add-mentee-btn').onclick = () => {
       status: 'active',
       notes: data.notes || null
     };
-    await saveMentee(mentee);
-    document.getElementById('modal-root').innerHTML = '';
-    await loadFromSupabase();
-    openMentee(mentee.id);
+    await runSubmit(form, async () => {
+      await saveMentee(mentee);
+      await loadFromSupabase();
+      document.getElementById('modal-root').innerHTML = '';
+      openMentee(mentee.id);
+    });
   };
 };
 
@@ -1197,11 +1455,11 @@ function exportMenteePdf(id) {
     '',
     'Recent Check-Ins:',
     ...checks.slice(0, 5).map(c => `#${c.checkInNumber} ${c.date} — Lead:${c.leadGenerationActivity||'—'} VT:${c.lightSpeedVtProgress||'—'} CRM:${c.loftyCrmUsage||'—'}`)
-  ].join('\\n');
+  ].join('\n');
   const blob = new Blob([text], { type: 'text/plain' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${m.fullName.replace(/\\s+/g, '-')}-summary.txt`;
+  a.download = `${(m.fullName || 'mentee').replace(/\s+/g, '-')}-summary.txt`;
   a.click();
 }
 
