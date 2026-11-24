@@ -22,7 +22,7 @@ assets/               Logo
 ## One-time Supabase setup (Andres)
 The app expects six tables: `mentees`, `check_ins`, `escalations`, `graduation_recommendations`, `mentor_feedback`, and `kickoff_sessions`. You create them yourself; the app never runs migrations.
 
-1. Open the Supabase project → **SQL Editor** → **New query**.
+1. Open the **agent-mentorship-hub** Supabase project → **SQL Editor** → **New query**.
 2. Paste the full contents of `supabase/schema.sql` and click **Run**.
    - The script is idempotent, so you can re-run it safely after schema changes.
    - It enables RLS on every table and adds own-row SELECT/INSERT/UPDATE/DELETE policies (`user_id = auth.uid()`).
@@ -32,7 +32,7 @@ The app expects six tables: `mentees`, `check_ins`, `escalations`, `graduation_r
 If **Confirm email** is on in Supabase Auth (the default), sign-up does **not** create a session. The app keeps the login screen open and shows *"Check your email to confirm your account."* The user clicks the link in the email and then signs in. If the confirmation link redirects somewhere unexpected, set **Authentication → URL Configuration → Site URL** to wherever the app is served (for example `http://localhost:8000` or your production domain).
 
 ### Client configuration
-`js/app.js` sets the Supabase project URL and the public **anon** key at the top of the file. The anon key is meant to be public, and RLS is what protects the data. Never put the `service_role` key in this repo or in any client code.
+`js/app.js` sets the Supabase project URL and the public **anon** key at the top of the file. This app uses the dedicated **agent-mentorship-hub** project. The anon key is meant to be public, and RLS is what protects the data. Never put the `service_role` key in this repo or in any client code.
 
 ## Run locally
 This is a static site with no build step. Serve the folder over HTTP rather than opening the file directly, so that Supabase Auth redirects and storage behave normally:
