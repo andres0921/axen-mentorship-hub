@@ -1,6 +1,6 @@
 // Axen Mentorship Hub — Supabase-backed
-const SUPABASE_URL = 'https://chcmdibksurpfozbysqj.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNoY21kaWJrc3VycGZvemJ5c3FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTE5Mjk4OTQsImV4cCI6MjEwNzUwNTg5NH0.O6qpMcI1f6venAH51BPmi78WSxDgisSU2KbJNJKjoWg';
+const SUPABASE_URL = 'https://delfnadofjhlasxafvri.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlbGZuYWRvZmpobGFzeGFmdnJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTU1NjMzMDQsImV4cCI6MjExMTEzOTMwNH0.uMjayCov5J2i9LaRztx0O6TtkNriKaMnIEmgv1gKRPM';
 
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 

@@ -3,6 +3,9 @@
 -- Run this once in the Supabase dashboard: SQL Editor → New query → paste → Run.
 -- It is idempotent: tables/indexes are created only if missing and policies are
 -- dropped and recreated, so it is safe to re-run.
+-- Caveat: `create table if not exists` will NOT add new columns or change
+-- constraints on a table that already exists; schema changes to existing
+-- tables need explicit `alter table` statements.
 --
 -- Every table is owned per-mentor via user_id (defaults to auth.uid()), has Row
 -- Level Security enabled, and has own-row SELECT/INSERT/UPDATE/DELETE policies.
@@ -258,3 +261,30 @@ begin
   end loop;
 end;
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Table privileges
+-- RLS policies only filter rows; the role also needs table-level privileges.
+-- Don't rely on Supabase's default grants (newer projects may not expose new
+-- public tables to the API automatically). The browser app only talks to the
+-- database as `authenticated`; `anon` gets nothing.
+-- ---------------------------------------------------------------------------
+grant usage on schema public to authenticated, service_role;
+
+grant select, insert, update, delete on
+  public.mentees,
+  public.check_ins,
+  public.escalations,
+  public.graduation_recommendations,
+  public.mentor_feedback,
+  public.kickoff_sessions
+to authenticated, service_role;
+
+revoke all on
+  public.mentees,
+  public.check_ins,
+  public.escalations,
+  public.graduation_recommendations,
+  public.mentor_feedback,
+  public.kickoff_sessions
+from anon;
