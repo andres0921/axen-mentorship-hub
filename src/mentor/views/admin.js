@@ -4,7 +4,7 @@ import { esc } from '../../shared/esc.js';
 import { formatDate, daysInProgram } from '../../shared/format.js';
 import { closedRequired } from '../../shared/program.js';
 import { state, isAdmin, mentorName } from '../state.js';
-import { dom, setHeader, statusClass, detailLine } from './common.js';
+import { dom, setHeader, statusClass, detailLine, emptyState } from './common.js';
 
 function notAdmin() {
   setHeader('Not available', 'Admin only');
@@ -17,7 +17,25 @@ export function renderAdminMentees() {
   const rows = [...state.mentees].sort((a, b) =>
     mentorName(a.userId).localeCompare(mentorName(b.userId)) || (a.fullName || '').localeCompare(b.fullName || ''));
   dom.app.innerHTML = `
-    <div class="card overflow-x-auto">
+    <!-- Below md: one stacked card per mentee (same open action as a table row). -->
+    <div class="md:hidden space-y-3">
+      ${rows.map(m => `
+        <button type="button" class="card p-4 w-full text-left block min-h-[44px]" data-action="open-mentee" data-mentee-id="${esc(m.id)}">
+          <span class="flex items-start justify-between gap-3">
+            <span class="min-w-0">
+              <span class="block font-medium break-words">${esc(m.fullName)}</span>
+              <span class="block text-sm text-navy-700/60 break-words">Mentor ${esc(mentorName(m.userId))}</span>
+            </span>
+            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}">${esc(m.status)}</span>
+          </span>
+          <span class="mt-3 grid grid-cols-3 gap-2 text-sm">
+            <span><span class="block text-navy-700/50 text-xs">Stage</span>${esc(m.currentStage) || '—'}</span>
+            <span class="min-w-0 break-words"><span class="block text-navy-700/50 text-xs">Portal</span>${esc(m.portalAccess)}</span>
+            <span><span class="block text-navy-700/50 text-xs">Days</span>${daysInProgram(m.programStartDate)}</span>
+          </span>
+        </button>`).join('') || emptyState({ icon: '☷', title: 'No mentees in the program yet', body: 'Mentees appear here as soon as any mentor adds one.' })}
+    </div>
+    <div class="hidden md:block card overflow-x-auto">
       <table class="w-full text-sm">
         <thead class="text-left text-navy-700/60 border-b border-navy-100">
           <tr><th class="p-3">Mentee</th><th class="p-3">Mentor</th><th class="p-3">Stage</th><th class="p-3">Status</th><th class="p-3">Portal</th><th class="p-3">Days</th></tr>
@@ -57,11 +75,11 @@ export function renderAdminGraduations() {
     return `
       <div class="card p-6">
         <div class="flex items-start justify-between gap-3">
-          <div>
-            <button type="button" data-action="open-mentee" data-mentee-id="${esc(g.mentee_id)}" class="font-semibold text-lg underline">${esc(menteeName(g.mentee_id))}</button>
+          <div class="min-w-0">
+            <button type="button" data-action="open-mentee" data-mentee-id="${esc(g.mentee_id)}" class="font-semibold text-lg underline text-left break-words max-md:min-h-[44px]">${esc(menteeName(g.mentee_id))}</button>
             <div class="text-sm text-navy-700/60">Mentor ${esc(mentorName(g.user_id))} · submitted ${esc(formatDate(g.date_of_submission))}</div>
           </div>
-          <span class="text-xs px-2.5 py-1 rounded-full ${g.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : g.status === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gold-100 text-gold-800'}">${esc(g.status)}</span>
+          <span class="shrink-0 text-xs px-2.5 py-1 rounded-full ${g.status === 'approved' ? 'bg-emerald-100 text-emerald-800' : g.status === 'declined' ? 'bg-red-100 text-red-800' : 'bg-gold-100 text-gold-800'}">${esc(g.status)}</span>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm mt-4">
           <div>${check(g.closed_transactions_confirmed)} ${esc(required)} closed transactions</div>
@@ -76,10 +94,10 @@ export function renderAdminGraduations() {
         ${g.review_note ? detailLine('Review note', g.review_note) : ''}
         ${g.status === 'submitted' ? `
           <div class="mt-4 space-y-2">
-            <textarea id="grad-note-${esc(g.id)}" rows="2" placeholder="Note to the mentor (optional)" class="w-full border border-navy-200 rounded-lg px-3 py-2 text-sm"></textarea>
-            <div class="flex gap-2">
-              <button type="button" data-action="review-graduation" data-id="${esc(g.id)}" data-decision="approved" class="btn-primary px-5 py-2 rounded-lg text-sm">Approve &amp; graduate</button>
-              <button type="button" data-action="review-graduation" data-id="${esc(g.id)}" data-decision="declined" class="px-5 py-2 rounded-lg text-sm border border-red-200 text-red-700">Decline</button>
+            <textarea id="grad-note-${esc(g.id)}" rows="2" placeholder="Note to the mentor (optional)" class="w-full border border-navy-200 rounded-lg px-3 py-2 text-sm max-md:text-base"></textarea>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" data-action="review-graduation" data-id="${esc(g.id)}" data-decision="approved" class="btn-primary px-5 py-2 rounded-lg text-sm max-md:min-h-[44px] max-md:flex-1">Approve &amp; graduate</button>
+              <button type="button" data-action="review-graduation" data-id="${esc(g.id)}" data-decision="declined" class="px-5 py-2 rounded-lg text-sm border border-red-200 text-red-700 max-md:min-h-[44px] max-md:flex-1">Decline</button>
             </div>
           </div>` : ''}
       </div>`;
@@ -87,7 +105,7 @@ export function renderAdminGraduations() {
 
   dom.app.innerHTML = `
     <div class="space-y-4 max-w-4xl">
-      ${pending.length ? pending.map(card).join('') : '<div class="card p-8 text-center text-navy-700/50">No graduation recommendations are waiting for approval.</div>'}
+      ${pending.length ? pending.map(card).join('') : emptyState({ icon: '🎓', title: 'Nothing waiting for approval', body: 'When a mentor recommends a mentee for graduation, it shows up here for your review.' })}
       ${reviewed.length ? `<h2 class="section-title text-2xl mt-8 mb-2">Recently reviewed</h2>${reviewed.map(card).join('')}` : ''}
     </div>
   `;

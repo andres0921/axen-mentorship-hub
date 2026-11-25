@@ -2,8 +2,10 @@
 // Mobile-first, hash-routed: #home #checkin[/id] #sessions #feedback #help #account
 import '../styles.css';
 import { supabase } from '../shared/supabase.js';
-import { SITE_URL, MENTEE_PORTAL_PATH } from '../shared/config.js';
 import { fetchRole, homePathForRole, signOut } from '../shared/auth.js';
+import { readAuthRedirectError, clearAuthRedirectParams, redirectErrorMessage } from '../shared/auth-methods.js';
+import { createSignIn } from '../shared/signin.js';
+import { mountSecurityPanel } from '../shared/security-panel.js';
 import { registerActions, installDelegation } from '../shared/actions.js';
 import { esc } from '../shared/esc.js';
 import { weekOf } from '../shared/format.js';
@@ -18,6 +20,11 @@ const $ = (id) => document.getElementById(id);
 const SECTIONS = ['signin', 'not-set-up', 'loading', 'app'];
 const TABS = new Set(['home', 'checkin', 'sessions', 'feedback', 'help', 'account']);
 
+// OAuth return error (e.g. Google account not invited): read before
+// supabase-js handles the URL, then tidy the address bar.
+const redirectError = readAuthRedirectError();
+if (redirectError) clearAuthRedirectParams();
+
 let currentUser = null;
 let enteringFor = null;
 let flash = null; // { text, kind } shown once at the top of the next render
@@ -25,7 +32,17 @@ let flash = null; // { text, kind } shown once at the top of the next render
 function showSection(id) {
   SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('tabbar').classList.toggle('hidden', id !== 'app' || !m.mentee || m.mentee.portal_access !== 'active');
+  document.body.classList.toggle('auth-open', id === 'signin');
+  if (id !== 'signin') signin.stop();
 }
+
+const signin = createSignIn({
+  root: $('signin'),
+  prefix: 'signin',
+  app: 'mentee',
+  allowPassword: false, // mentees are passwordless
+  onSession: (session) => enter(session),
+});
 
 function setFlash(text, kind = 'info') {
   flash = { text, kind };
@@ -67,6 +84,8 @@ function render() {
     : '';
   flash = null;
   app.innerHTML = banner + html;
+  const security = $('security-panel');
+  if (security) mountSecurityPanel(security, { totp: false });
   app.classList.add('view-enter');
   setTimeout(() => app.classList.remove('view-enter'), 250);
   document.querySelectorAll('.tab-btn').forEach(a => {
@@ -93,12 +112,15 @@ async function refresh() {
 // ---------------------------------------------------------------------------
 // Sign-in / session
 // ---------------------------------------------------------------------------
-function showSignIn() {
+function showSignIn({ message, kind = 'error' } = {}) {
   currentUser = null;
   enteringFor = null;
   m.mentee = null;
   $('app').innerHTML = '';
   showSection('signin');
+  signin.showEmail();
+  if (message) signin.showMessage(message, kind);
+  window.scrollTo(0, 0);
 }
 
 function showNotSetUp(email) {
@@ -141,41 +163,6 @@ async function enter(session) {
     SECTIONS.forEach(s => $(s).classList.toggle('hidden', s !== 'app'));
   }
 }
-
-$('signin-form').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const form = e.currentTarget;
-  const btn = form.querySelector('[type="submit"]');
-  const msg = $('signin-message');
-  const email = $('signin-email').value.trim();
-  if (!email) return;
-  btn.disabled = true;
-  msg.classList.add('hidden');
-  try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        shouldCreateUser: false, // sign-ups are off; only invited mentees have accounts
-        emailRedirectTo: `${SITE_URL}/auth/confirm?next=${encodeURIComponent(MENTEE_PORTAL_PATH)}`,
-      },
-    });
-    // Same message whether or not the account exists (no account enumeration).
-    if (error && !/signups? not allowed|not found|otp_disabled|user not found/i.test(error.message)) {
-      msg.textContent = /rate|seconds|too many/i.test(error.message)
-        ? 'Too many requests. Please wait a minute and try again.'
-        : `Could not send the link: ${error.message}`;
-      msg.className = 'text-sm mt-4 text-red-700';
-    } else {
-      msg.textContent = 'If that email is enrolled, a sign-in link is on its way. Check your inbox (and spam) on this device.';
-      msg.className = 'text-sm mt-4 text-emerald-700';
-    }
-  } catch (err) {
-    msg.textContent = `Could not send the link: ${errorText(err)}`;
-    msg.className = 'text-sm mt-4 text-red-700';
-  } finally {
-    btn.disabled = false;
-  }
-});
 
 // ---------------------------------------------------------------------------
 // Actions (event delegation, no inline handlers)
@@ -284,9 +271,9 @@ supabase.auth.onAuthStateChange((event, session) => {
   }, 0);
 });
 
-supabase.auth.getSession().then(({ data: sessionData, error }) => {
-  if (error || !sessionData || !sessionData.session) {
-    showSignIn();
+supabase.auth.getSession().then(({ data: sessionData }) => {
+  if (!sessionData || !sessionData.session) {
+    showSignIn(redirectError ? { message: redirectErrorMessage(redirectError) } : {});
     return;
   }
   enter(sessionData.session);

@@ -1,4 +1,5 @@
 import { esc } from '../../shared/esc.js';
+import { closedRequired } from '../../shared/program.js';
 import { state, myMentees } from '../state.js';
 
 export const dom = {
@@ -68,11 +69,11 @@ export function scoreRow(label, name) {
   return `
     <div>
       <label class="block text-sm mb-2">${esc(label)}</label>
-      <div class="flex gap-2">
+      <div class="flex flex-wrap gap-2">
         ${[1, 2, 3, 4, 5].map(n => `
           <label class="cursor-pointer">
             <input type="radio" name="${esc(name)}" value="${n}" class="sr-only peer">
-            <div class="score-pill score-${n} peer-checked:ring-2 peer-checked:ring-gold-500 peer-checked:ring-offset-2">${n}</div>
+            <div class="score-pill score-pill-tap score-${n} peer-checked:ring-2 peer-checked:ring-gold-500 peer-checked:ring-offset-2">${n}</div>
           </label>
         `).join('')}
       </div>
@@ -85,5 +86,39 @@ export function sharedBadge(shared) {
     ? '<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Shared with mentee</span>'
     : '<span class="text-xs px-2 py-0.5 rounded-full bg-navy-100 text-navy-700">Not shared</span>';
 }
+
+// "X of N deals closed" meter (N = closedRequired(), the graduation target).
+// Stepped segments for small targets, a continuous bar otherwise.
+export function dealsMeter(closed, required = closedRequired()) {
+  const req = Math.max(1, Number(required) || 1);
+  const n = Math.max(0, Number(closed) || 0);
+  const filled = Math.min(n, req);
+  const done = n >= req;
+  const fill = done ? 'bg-emerald-500' : 'bg-gold-500';
+  const track = req <= 8
+    ? Array.from({ length: req }, (_, i) => `<span class="h-2 flex-1 rounded-full ${i < filled ? fill : 'bg-navy-100'}"></span>`).join('')
+    : `<span class="h-2 flex-1 rounded-full bg-navy-100 overflow-hidden"><span class="block h-full rounded-full ${fill}" style="width:${Math.round((filled / req) * 100)}%"></span></span>`;
+  return `
+    <div data-deals-meter>
+      <div class="flex items-baseline justify-between gap-2 text-sm">
+        <span class="font-medium text-navy-900">${esc(n)} of ${esc(req)} deals closed</span>
+        <span class="text-xs ${done ? 'text-emerald-700 font-medium' : 'text-navy-700/50'}">${done ? 'Graduation goal met' : `${esc(req - filled)} to go`}</span>
+      </div>
+      <div class="mt-1.5 flex gap-1" role="progressbar" aria-label="Closed deals toward graduation" aria-valuemin="0" aria-valuemax="${esc(req)}" aria-valuenow="${esc(filled)}">${track}</div>
+    </div>`;
+}
+
+// Friendly empty state: icon, one-line title, short sentence, optional CTA.
+export function emptyState({ icon = '', title, body = '', action = '' }) {
+  return `
+    <div class="card px-6 py-10 md:p-10 text-center" data-empty-state>
+      ${icon ? `<div class="mx-auto mb-3 h-12 w-12 rounded-full bg-gold-50 text-2xl flex items-center justify-center" aria-hidden="true">${icon}</div>` : ''}
+      <div class="font-medium text-navy-900">${esc(title)}</div>
+      ${body ? `<p class="text-sm text-navy-700/60 mt-1 max-w-sm mx-auto">${esc(body)}</p>` : ''}
+      ${action ? `<div class="mt-5">${action}</div>` : ''}
+    </div>`;
+}
+
+export const CTA_CLASS = 'btn-primary px-6 py-3 rounded-xl min-h-[44px] max-md:w-full';
 
 export const MENTOR_ONLY_BADGE = '<span class="text-xs px-2 py-0.5 rounded-full bg-gold-100 text-gold-800 font-medium">Mentor-only · never shown to mentee</span>';

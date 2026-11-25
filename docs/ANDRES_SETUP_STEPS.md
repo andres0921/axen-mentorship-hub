@@ -80,6 +80,8 @@ with `next=/mentee/` still lands on `/`.
 <h2>Welcome to AXEN Mentorship</h2>
 <p>Your mentor has invited you to the AXEN Mentorship portal, where you can see your progress, submit weekly check-ins and ask your mentor for help.</p>
 <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/mentee/">Open my mentorship portal</a></p>
+<p>Or type this 6-digit code in the app:</p>
+<p style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:monospace">{{ .Token }}</p>
 <p>On the page that opens, tap <strong>Continue</strong>. This link works once and expires in 24 hours. If it has expired, go to {{ .SiteURL }}/mentee/ and request a new sign-in link.</p>
 <p>If you weren't expecting this, you can ignore this email.</p>
 ```
@@ -88,6 +90,8 @@ with `next=/mentee/` still lands on `/`.
 ```html
 <h2>Sign in to AXEN Mentorship</h2>
 <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=magiclink&next=/mentee/">Sign in</a></p>
+<p>Or type this 6-digit sign-in code in the app:</p>
+<p style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:monospace">{{ .Token }}</p>
 <p>On the page that opens, tap <strong>Continue</strong>. This link works once and expires in 1 hour.</p>
 <p>If you didn't ask to sign in, you can ignore this email.</p>
 ```
@@ -98,6 +102,8 @@ invite asks for a sign-in link, so set it too:
 ```html
 <h2>Sign in to AXEN Mentorship</h2>
 <p><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email&next=/mentee/">Confirm and sign in</a></p>
+<p>Or type this 6-digit sign-in code in the app:</p>
+<p style="font-size:32px;font-weight:700;letter-spacing:8px;font-family:monospace">{{ .Token }}</p>
 <p>On the page that opens, tap <strong>Continue</strong>.</p>
 ```
 
@@ -107,7 +113,10 @@ invite asks for a sign-in link, so set it too:
 ```
 
 Optional, under **Authentication → Providers → Email**: set **Email OTP Expiration**
-to `3600` (1 hour).
+to `3600` (1 hour). Leave **Email OTP Length** at `6` (the app's code box expects 6 digits).
+
+The `{{ .Token }}` block is the 6-digit code for in-app sign-in (see "Easier sign-in"
+below). Keep the `token_hash` Continue links exactly as they are; both work from the same email.
 
 ---
 
@@ -208,6 +217,110 @@ Use a test address you control, e.g. a Gmail alias `andres.e.aviles94+mentee1@gm
     account. You get the same neutral message and **no** email arrives.
 
 Clean up: delete the test mentee (and the test auth user under Authentication → Users).
+
+## Easier sign-in (email code, passkeys, Google, authenticator app)
+
+The app now offers, on both `/` (mentors) and `/mentee/` (mentees):
+
+1. **Email me a sign-in code** (the main path): type the email, get a 6-digit code, type it in the app.
+2. **Face ID or passkey** (after someone adds a passkey from Profile / Account).
+3. **Continue with Google** (only for people who are already invited).
+4. **Use a password** (mentor app only; mentees never use passwords).
+5. Optional for admins: **two-step verification** with an authenticator app.
+
+Everything below is a **live production setting**. The code works safely before any
+of it is done: each option stays hidden or falls back to email until you switch it on.
+Sign-ups stay off throughout; none of these can create a new account.
+
+### 1. Email templates: add the 6-digit code (needed for in-app codes)
+
+**Authentication → Emails → Templates.** Paste the updated **Invite user**, **Magic Link**
+and **Confirm signup** templates from section (d) above. Each keeps the existing
+`/auth/confirm?token_hash=…` Continue link and adds a large `{{ .Token }}` code.
+
+- Code path: `sendEmailOtp` / `verifyEmailOtp` in `src/shared/auth-methods.js`
+  (`verifyOtp({ email, token, type: 'email' })`).
+- **Until you do this:** emails only contain the link. The link still works. If someone
+  types a code anyway, the app says the code didn't work and tells them to tap the
+  sign-in button in the email.
+- Codes are rate-limited to one email per address per 60 seconds; the app shows a
+  60-second "Resend code" countdown.
+
+### 2. Passkeys / Face ID / Touch ID
+
+**Authentication → Passkeys** (it may be under **Sign In / Providers** depending on the
+dashboard version) → **Enable**, with:
+
+| Field | Value |
+|---|---|
+| Display name | `AXEN Mentorship Hub` |
+| Relying Party ID (RP ID) | `andresaviles.com` |
+| Allowed origins | `https://mentorship.andresaviles.com` and `http://localhost:5173` |
+
+- Pick the RP ID once. **Changing it later breaks every passkey already created.**
+  `andresaviles.com` lets passkeys work on any subdomain you add later.
+- Passkeys do **not** work on Vercel preview URLs (`*.vercel.app` isn't under
+  `andresaviles.com`). That's expected; test on the real domain or localhost.
+- People add a passkey after signing in: mentors in **Profile → Sign-in & security**,
+  mentees in **Account**. They need an existing confirmed account (invited users already have one).
+- Code path: `signInWithPasskeySafe`, `registerPasskeySafe`, `listPasskeys`,
+  `deletePasskey` in `src/shared/auth-methods.js`; passkey autofill on the email field
+  (`autocomplete="username webauthn"`).
+- **Until you do this:** the passkey button disappears the first time Supabase says
+  passkeys are off (rechecked twice a day), and Profile/Account say "Passkeys aren't
+  turned on yet."
+
+### 3. Sign in with Google (invited users only)
+
+a. **Google Cloud Console** → APIs & Services → **OAuth consent screen**: app name
+   `AXEN Mentorship Hub`, user type **External**, publish it (scopes: the default
+   `email`, `profile`, `openid` only).
+b. **Credentials → Create credentials → OAuth client ID → Web application**:
+   - Authorized JavaScript origins: `https://mentorship.andresaviles.com`
+   - Authorized redirect URI: `https://delfnadofjhlasxafvri.supabase.co/auth/v1/callback`
+c. **Supabase → Authentication → Sign In / Providers → Google** → enable, paste the
+   **Client ID** and **Client secret**.
+   - Leave **"Allow new users to sign up"** **OFF** (also check the global sign-up
+     setting is still off from step (e)).
+   - Leave **"Skip nonce checks"** **off**.
+d. **URL Configuration:** nothing new. The existing `https://mentorship.andresaviles.com/**`
+   redirect pattern already covers `/` and `/mentee/`.
+
+- A Google account whose email matches an invited user signs in to that same account.
+  Any other Google account gets: "This Google account hasn't been invited yet."
+- Code path: `signInWithGoogle` (top-level redirect, `prompt=select_account`), and
+  `fetchAuthSettings` reads `GET /auth/v1/settings` to decide whether to show the button.
+- **Until you do this:** the "Continue with Google" button is hidden.
+- **Caveat for you specifically:** your YouTube block has broken Google sign-in before,
+  because Google's flow can pass through `accounts.youtube.com`. If it fails on your
+  devices it may still work for everyone else; use the email code yourself.
+
+### 4. Authenticator app (two-step) for admins
+
+- **Authentication → Multi-Factor**: leave **TOTP (App Authenticator)** **enabled** (the
+  default). Nothing to change unless someone turned it off.
+- To turn it on for yourself: sign in → **Profile** → **Two-step verification** → **Set up
+  authenticator app** → scan the QR (or type the key) → enter the 6-digit code → **Turn on**.
+  From then on, after any sign-in method you'll be asked for the authenticator code
+  before the app loads. Turn it off from the same place (asks to confirm).
+- Only admins see the setup. Mentors and mentees without it are never asked.
+- Code path: `mfaGateStatus`, `verifyTotp`, `startTotpEnrollment`, `removeTotp`.
+- **If TOTP is disabled in the dashboard:** the setup section hides itself and sign-in
+  is never blocked.
+- Note: this is a sign-in step in the app. The database policies don't require it
+  (`aal2`), so it protects against a stolen password/email, not a stolen session.
+
+### Smoke test after switching things on (10 minutes, on https://mentorship.andresaviles.com)
+
+1. `/` → type your email → **Email me a sign-in code** → the email has both the button and a
+   6-digit code → typing the code signs you in.
+2. Request a code for an email with no account: same "if it has an account…" screen, no email arrives.
+3. Profile → **Add a passkey** → sign out → **Face ID or passkey** signs you in.
+4. Sign out → **Continue with Google** with an invited Google account works; with a
+   different Google account you see "hasn't been invited yet" and no user is created
+   (check Authentication → Users).
+5. Profile → set up the authenticator app → sign out and back in → you're asked for the code.
+6. `/mentee/` with a test mentee: code sign-in works; Account shows the passkey section.
 
 ## Still to confirm
 - **Program numbers:** confirmed: 4 closed transactions to graduate, no per-stage

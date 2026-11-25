@@ -1,15 +1,16 @@
 // AXEN Mentorship Hub — mentor / admin app entry point.
 import '../styles.css';
 import { supabase } from '../shared/supabase.js';
-import { SITE_URL } from '../shared/config.js';
 import { fetchRole, homePathForRole, signOut } from '../shared/auth.js';
+import { mfaGateStatus, readAuthRedirectError, clearAuthRedirectParams, redirectErrorMessage, friendlyAuthMessage } from '../shared/auth-methods.js';
+import { createSignIn } from '../shared/signin.js';
 import { registerActions, installDelegation } from '../shared/actions.js';
 import { esc } from '../shared/esc.js';
 import { today, reportError, downloadBlob } from '../shared/format.js';
 import { state, resetState, setRenderer, render, navigate, parseHash, isAdmin } from './state.js';
 import * as data from './data.js';
 import { dom } from './views/common.js';
-import { renderDashboard, renderMentees, renderCommitments, filterMentees } from './views/dashboard.js';
+import { renderDashboard, renderMentees, renderCommitments, filterMentees, renderDashboardSkeleton } from './views/dashboard.js';
 import { renderMenteeDetail } from './views/menteeDetail.js';
 import {
   renderCheckInForm, renderEscalationForm, renderGraduationForm, renderFeedbackForm, renderKickoffForm,
@@ -17,20 +18,251 @@ import {
 } from './views/forms.js';
 import { renderAdminMentees, renderAdminGraduations } from './views/admin.js';
 
+// Read an OAuth return error (e.g. Google account not invited) before
+// supabase-js handles the URL, then tidy the address bar.
+const redirectError = readAuthRedirectError();
+if (redirectError) clearAuthRedirectParams();
+
 const authOverlay = document.getElementById('auth-overlay');
-const authForm = document.getElementById('auth-form');
-const authMessage = document.getElementById('auth-message');
-const pendingBox = document.getElementById('auth-pending');
 const signOutBtn = document.getElementById('signout-btn');
 let loadedUserId = null;
+let mfaPromptFor = null;
+
+// ---------------------------------------------------------------------------
+// Mobile chrome (below md / 768px): off-canvas sidebar drawer (hamburger or the
+// "More" tab, swipe left to close), header "…" overflow menu, bottom tab bar,
+// floating add button, bottom-sheet modals. On md+ the sidebar is always
+// visible, every mobile control is display:none, and this state has no
+// visual effect.
+// ---------------------------------------------------------------------------
+const body = document.body;
+const sidebar = document.getElementById('sidebar');
+const navToggle = document.getElementById('nav-toggle');
+const navClose = document.getElementById('nav-close');
+const navBackdrop = document.getElementById('nav-backdrop');
+const headerMenu = document.getElementById('header-menu');
+const headerMenuBtn = document.getElementById('header-menu-btn');
+const tabMore = document.getElementById('tabbar-more');
+const appHeader = document.getElementById('app-header');
+const modalRoot = document.getElementById('modal-root');
+const mq = (q) => (typeof window.matchMedia === 'function' ? window.matchMedia(q) : null);
+const desktopMq = mq('(min-width: 768px)');
+const reducedMotionMq = mq('(prefers-reduced-motion: reduce)');
+const isDesktop = () => !!(desktopMq && desktopMq.matches);
+const prefersReducedMotion = () => !!(reducedMotionMq && reducedMotionMq.matches);
+
+const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const visibleFocusables = (root) => [...root.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
+
+// Drawer -------------------------------------------------------------------
+let drawerOpener = navToggle;
+
+function isDrawerOpen() {
+  return sidebar.classList.contains('is-open');
+}
+
+function setDrawerExpanded(open) {
+  navToggle.setAttribute('aria-expanded', String(open));
+  navToggle.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+  tabMore.setAttribute('aria-expanded', String(open));
+}
+
+function openDrawer(opener = navToggle) {
+  if (isDesktop() || isDrawerOpen()) return;
+  closeHeaderMenu({ restoreFocus: false });
+  drawerOpener = opener;
+  sidebar.classList.add('is-open');
+  navBackdrop.classList.add('is-open');
+  body.classList.add('nav-open');
+  setDrawerExpanded(true);
+  navClose.focus();
+}
+
+function closeDrawer({ restoreFocus = true } = {}) {
+  if (!isDrawerOpen()) return;
+  sidebar.classList.remove('is-open');
+  navBackdrop.classList.remove('is-open');
+  body.classList.remove('nav-open');
+  setDrawerExpanded(false);
+  if (restoreFocus && !isDesktop()) (drawerOpener || navToggle).focus();
+}
+
+// Swipe the open drawer to the left to close it (touch only; click, Escape and
+// the close button keep working). Vertical drags still scroll the nav.
+let drag = null;
+function dragStart(e) {
+  if (!isDrawerOpen() || e.touches.length !== 1) return;
+  const t = e.touches[0];
+  drag = { x: t.clientX, y: t.clientY, dx: 0, axis: null, at: Date.now() };
+}
+function dragMove(e) {
+  if (!drag) return;
+  const t = e.touches[0];
+  const dx = t.clientX - drag.x;
+  const dy = t.clientY - drag.y;
+  if (!drag.axis && Math.abs(dx) + Math.abs(dy) > 8) drag.axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+  if (drag.axis !== 'x') return;
+  drag.dx = Math.min(0, dx);
+  sidebar.classList.add('is-dragging');
+  navBackdrop.classList.add('is-dragging');
+  sidebar.style.transform = `translateX(${drag.dx}px)`;
+  navBackdrop.style.opacity = String(Math.max(0, 1 + drag.dx / (sidebar.offsetWidth || 256)));
+}
+function dragEnd(e) {
+  if (!drag) return;
+  const { axis, at } = drag;
+  // Decide from where the finger actually lifted (more reliable than the last
+  // touchmove, which can be coalesced or stale).
+  const lift = e && e.changedTouches && e.changedTouches[0];
+  const dx = lift ? Math.min(0, lift.clientX - drag.x) : drag.dx;
+  drag = null;
+  sidebar.classList.remove('is-dragging');
+  navBackdrop.classList.remove('is-dragging');
+  sidebar.style.transform = '';
+  navBackdrop.style.opacity = '';
+  if (axis !== 'x') return;
+  const flick = dx < -30 && Date.now() - at < 250;
+  if (flick || dx < -(sidebar.offsetWidth || 256) * 0.3) closeDrawer();
+}
+for (const el of [sidebar, navBackdrop]) {
+  el.addEventListener('touchstart', dragStart, { passive: true });
+  el.addEventListener('touchmove', dragMove, { passive: true });
+  el.addEventListener('touchend', dragEnd);
+  el.addEventListener('touchcancel', dragEnd);
+}
+
+// Header "…" menu -----------------------------------------------------------
+function isHeaderMenuOpen() {
+  return headerMenu.classList.contains('is-open');
+}
+
+function openHeaderMenu() {
+  if (isDesktop() || isHeaderMenuOpen()) return;
+  headerMenu.classList.add('is-open');
+  headerMenuBtn.setAttribute('aria-expanded', 'true');
+  const first = visibleFocusables(headerMenu)[0];
+  if (first) first.focus();
+}
+
+function closeHeaderMenu({ restoreFocus = true } = {}) {
+  if (!isHeaderMenuOpen()) return;
+  headerMenu.classList.remove('is-open');
+  headerMenuBtn.setAttribute('aria-expanded', 'false');
+  if (restoreFocus && !isDesktop()) headerMenuBtn.focus();
+}
+
+navToggle.addEventListener('click', () => (isDrawerOpen() ? closeDrawer() : openDrawer(navToggle)));
+tabMore.addEventListener('click', () => (isDrawerOpen() ? closeDrawer() : openDrawer(tabMore)));
+navClose.addEventListener('click', () => closeDrawer());
+navBackdrop.addEventListener('click', () => closeDrawer());
+headerMenuBtn.addEventListener('click', () => (isHeaderMenuOpen() ? closeHeaderMenu() : openHeaderMenu()));
+// Any item in the menu closes it (the item's own listener still runs first).
+headerMenu.addEventListener('click', (e) => {
+  if (e.target.closest('button')) closeHeaderMenu({ restoreFocus: false });
+});
+document.addEventListener('click', (e) => {
+  if (isHeaderMenuOpen() && !headerMenu.contains(e.target) && !headerMenuBtn.contains(e.target)) {
+    closeHeaderMenu({ restoreFocus: false });
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (isDrawerOpen()) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      closeDrawer();
+    } else if (e.key === 'Tab') {
+      // Keep keyboard focus inside the open drawer.
+      const items = visibleFocusables(sidebar);
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+  } else if (isHeaderMenuOpen() && e.key === 'Escape') {
+    e.preventDefault();
+    closeHeaderMenu();
+  }
+});
+
+// Bottom-sheet modals: lock page scroll while one is open; animate the sheet
+// down on Cancel / backdrop (md+ and reduced motion: instant, as before).
+new MutationObserver(() => body.classList.toggle('modal-open', !!modalRoot.firstElementChild))
+  .observe(modalRoot, { childList: true });
+
+function closeModal() {
+  const shell = modalRoot.firstElementChild;
+  if (!shell) return;
+  if (isDesktop() || prefersReducedMotion()) {
+    modalRoot.innerHTML = '';
+    return;
+  }
+  shell.classList.add('is-closing');
+  setTimeout(() => {
+    // Only clear if no other modal replaced this one meanwhile.
+    if (modalRoot.firstElementChild === shell) modalRoot.innerHTML = '';
+  }, 190);
+}
+
+// Sticky header gets a divider shadow once the page scrolls (mobile CSS only).
+let scrollTicking = false;
+window.addEventListener('scroll', () => {
+  if (scrollTicking) return;
+  scrollTicking = true;
+  requestAnimationFrame(() => {
+    scrollTicking = false;
+    appHeader.classList.toggle('is-scrolled', window.scrollY > 4);
+  });
+}, { passive: true });
+
+// On-screen keyboard: while a text field has focus, hide the tab bar / FAB and
+// let sticky form actions sit at the bottom edge (mobile CSS only).
+const TEXT_FIELD = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=reset]), textarea, select';
+document.addEventListener('focusin', (e) => {
+  if (e.target instanceof Element && e.target.matches(TEXT_FIELD)) body.classList.add('kb-open');
+});
+document.addEventListener('focusout', () => {
+  setTimeout(() => {
+    const el = document.activeElement;
+    if (!(el instanceof Element && el.matches(TEXT_FIELD))) body.classList.remove('kb-open');
+  }, 0);
+});
+
+// Crossing into md+ (rotate / resize): drop any mobile-only open state.
+if (desktopMq) {
+  const onBreakpoint = () => {
+    if (!isDesktop()) return;
+    closeDrawer({ restoreFocus: false });
+    closeHeaderMenu({ restoreFocus: false });
+  };
+  if (typeof desktopMq.addEventListener === 'function') desktopMq.addEventListener('change', onBreakpoint);
+  else if (typeof desktopMq.addListener === 'function') desktopMq.addListener(onBreakpoint);
+}
 
 // ---------------------------------------------------------------------------
 // Rendering
 // ---------------------------------------------------------------------------
+// Bottom tab for each view; every other view (forms, commitments, admin) lives
+// behind "More".
+const TAB_FOR_VIEW = { dashboard: 'dashboard', mentees: 'mentees', mentee: 'mentees', checkin: 'checkin' };
+
 function setActiveNav(view) {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
+  const tab = TAB_FOR_VIEW[view] || 'more';
+  document.querySelectorAll('.mentor-tab').forEach(btn => {
+    const on = btn.dataset.tab === tab;
+    btn.classList.toggle('is-active', on);
+    if (on && tab !== 'more') btn.setAttribute('aria-current', 'page');
+    else btn.removeAttribute('aria-current');
+  });
+  body.dataset.view = view;
 }
 
 const ADMIN_VIEWS = new Set(['admin-mentees', 'admin-graduations']);
@@ -39,7 +271,15 @@ function renderApp() {
   let view = state.currentView || 'dashboard';
   if (ADMIN_VIEWS.has(view) && !isAdmin()) view = 'dashboard';
   setActiveNav(view);
+  // Safety net (e.g. back/forward while the drawer is open): show the new view.
+  closeDrawer({ restoreFocus: false });
   const app = dom.app;
+  if (!state.user) {
+    // Signed out / session still restoring: placeholder behind the overlay,
+    // never a misleading "no mentees" state.
+    renderDashboardSkeleton();
+    return;
+  }
   app.innerHTML = '';
   app.classList.add('view-enter');
   setTimeout(() => app.classList.remove('view-enter'), 250);
@@ -81,6 +321,8 @@ function renderLoadError(err) {
 }
 
 async function reload() {
+  // Skeleton until loadFromSupabase() renders the real view (or the error).
+  renderDashboardSkeleton();
   try {
     await data.loadFromSupabase();
   } catch (err) {
@@ -108,7 +350,8 @@ registerActions({
   'open-mentee': (el) => navigate('mentee', { menteeId: el.dataset.menteeId }),
   'filter-mentees': () => filterMentees(),
   'retry-load': () => reload(),
-  'close-modal': () => { document.getElementById('modal-root').innerHTML = ''; },
+  'close-modal': () => closeModal(),
+  'add-mentee': () => openAddMenteeModal(),
   'export-summary': (el) => exportMenteeSummary(el.dataset.menteeId),
   'edit-mentee': (el) => openEditMenteeModal(el.dataset.menteeId),
   'convert-help': (el) => {
@@ -168,9 +411,15 @@ registerActions({
 installDelegation(document);
 
 document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => navigate(btn.dataset.view));
+  btn.addEventListener('click', () => {
+    // On mobile, close the drawer first so focus returns to the hamburger and
+    // the new view is visible; a no-op on md+.
+    closeDrawer();
+    navigate(btn.dataset.view);
+  });
 });
 document.getElementById('add-mentee-btn').addEventListener('click', openAddMenteeModal);
+document.getElementById('fab-add').addEventListener('click', openAddMenteeModal);
 document.getElementById('profile-btn').addEventListener('click', openProfileModal);
 document.getElementById('export-btn').addEventListener('click', exportAll);
 window.addEventListener('popstate', () => {
@@ -219,25 +468,37 @@ function exportMenteeSummary(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Auth (no public sign-up: accounts are created by invitation / by hand)
+// Auth (no public sign-up: accounts are created by invitation / by hand).
+// Sign-in UI + protocol: src/shared/signin.js and src/shared/auth-methods.js.
 // ---------------------------------------------------------------------------
-function showAuthMessage(text, kind = 'error') {
-  authMessage.textContent = text;
-  authMessage.classList.toggle('text-red-600', kind === 'error');
-  authMessage.classList.toggle('text-emerald-700', kind === 'info');
-  authMessage.classList.remove('hidden');
+function showAuth() {
+  authOverlay.classList.remove('hidden');
+  body.classList.add('auth-open');
 }
 
-function hideAuthMessage() {
-  authMessage.classList.add('hidden');
+function hideAuth() {
+  authOverlay.classList.add('hidden');
+  body.classList.remove('auth-open');
+}
+
+const signin = createSignIn({
+  root: authOverlay,
+  prefix: 'auth',
+  app: 'mentor',
+  allowPassword: true,
+  onSession: (session) => enterApp(session),
+  onSignOut: (btn) => doSignOut(btn),
+});
+
+function showAuthMessage(text, kind = 'error') {
+  signin.showMessage(text, kind);
 }
 
 function showPending(email) {
-  authForm.classList.add('hidden');
-  document.getElementById('auth-magic').classList.add('hidden');
-  pendingBox.classList.remove('hidden');
+  body.classList.remove('app-ready');
   document.getElementById('auth-pending-email').textContent = email || '';
-  authOverlay.classList.remove('hidden');
+  signin.showPending();
+  showAuth();
 }
 
 // Enter the app for a confirmed session. Safe to call repeatedly; data is only
@@ -252,8 +513,9 @@ async function enterApp(session) {
     ({ role, profile } = await fetchRole(session.user.id));
   } catch (err) {
     loadedUserId = null;
+    signin.showEmail();
     showAuthMessage(err.message || String(err));
-    authOverlay.classList.remove('hidden');
+    showAuth();
     return;
   }
   if (role === 'mentee') {
@@ -264,89 +526,62 @@ async function enterApp(session) {
     showPending(session.user.email);
     return;
   }
+  // Two-step gate: only people who turned on an authenticator app (admins,
+  // from Profile) are asked for a code, and only while the session is aal1.
+  const mfa = await mfaGateStatus();
+  if (mfa.needed) {
+    loadedUserId = null; // re-enter once the code is verified
+    if (mfaPromptFor !== session.user.id) {
+      mfaPromptFor = session.user.id;
+      signin.showMfa(mfa.factorId, async (upgraded) => {
+        mfaPromptFor = null;
+        await enterApp(upgraded || session);
+      });
+    }
+    showAuth();
+    return;
+  }
+  mfaPromptFor = null;
+  signin.stop();
   state.user = session.user;
   state.role = role;
   state.profile = profile;
   const initial = parseHash(window.location.hash);
   state.currentView = initial.view;
   state.selectedMenteeId = initial.menteeId;
-  authOverlay.classList.add('hidden');
+  hideAuth();
   signOutBtn.classList.remove('hidden');
-  hideAuthMessage();
+  body.classList.add('app-ready');
+  signin.clearMessage();
   updateAdminNav();
   await reload();
 }
 
-function leaveApp() {
+function leaveApp({ message } = {}) {
   resetState();
   loadedUserId = null;
+  mfaPromptFor = null;
+  closeDrawer({ restoreFocus: false });
+  closeHeaderMenu({ restoreFocus: false });
   document.getElementById('modal-root').innerHTML = '';
-  document.getElementById('auth-password').value = '';
   signOutBtn.classList.add('hidden');
-  authForm.classList.remove('hidden');
-  document.getElementById('auth-magic').classList.remove('hidden');
-  pendingBox.classList.add('hidden');
-  authOverlay.classList.remove('hidden');
+  body.classList.remove('app-ready', 'kb-open', 'modal-open');
+  signin.showEmail();
+  if (message) showAuthMessage(message, 'info');
+  showAuth();
+  window.scrollTo(0, 0);
   render();
 }
 
-authForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const submitBtn = document.getElementById('auth-submit');
-  hideAuthMessage();
-  submitBtn.disabled = true;
-  try {
-    const result = await supabase.auth.signInWithPassword({ email, password });
-    if (result.error) {
-      showAuthMessage(result.error.message);
-      return;
-    }
-    const session = result.data && result.data.session;
-    if (session) await enterApp(session);
-    else showAuthMessage('Sign-in did not return a session. Please try again.');
-  } catch (err) {
-    showAuthMessage(err.message || String(err));
-  } finally {
-    submitBtn.disabled = false;
-  }
-});
-
-document.getElementById('auth-magic').addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  const email = document.getElementById('auth-email').value.trim();
-  hideAuthMessage();
-  if (!email) {
-    showAuthMessage('Enter your email first.');
-    return;
-  }
-  btn.disabled = true;
-  try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false, emailRedirectTo: `${SITE_URL}/auth/confirm` },
-    });
-    // Same message whether or not the account exists (no account enumeration).
-    if (error && !/signups not allowed|not found|otp_disabled/i.test(error.message)) {
-      showAuthMessage(error.message);
-    } else {
-      showAuthMessage('If that email has an account, a sign-in link is on its way. Check your inbox.', 'info');
-    }
-  } finally {
-    btn.disabled = false;
-  }
-});
-
 async function doSignOut(btn) {
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   try {
     await signOut();
     leaveApp();
   } catch (err) {
     reportError(err);
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 signOutBtn.addEventListener('click', () => doSignOut(signOutBtn));
@@ -366,16 +601,14 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 supabase.auth.getSession().then(({ data: sessionData, error }) => {
-  if (error) {
-    showAuthMessage(`Could not restore session: ${error.message}`);
-    authOverlay.classList.remove('hidden');
-    return;
-  }
   if (sessionData && sessionData.session) {
     enterApp(sessionData.session);
-  } else {
-    authOverlay.classList.remove('hidden');
+    return;
   }
+  signin.showEmail();
+  if (redirectError) showAuthMessage(redirectErrorMessage(redirectError));
+  else if (error) showAuthMessage(`Could not restore your session. ${friendlyAuthMessage(error)}`);
+  showAuth();
 });
 
 // Initial render
