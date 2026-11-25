@@ -1,8 +1,9 @@
 // AXEN Mentorship Hub — mentor / admin app entry point.
 import '../styles.css';
 import { supabase } from '../shared/supabase.js';
-import { SITE_URL } from '../shared/config.js';
 import { fetchRole, homePathForRole, signOut } from '../shared/auth.js';
+import { mfaGateStatus, readAuthRedirectError, clearAuthRedirectParams, redirectErrorMessage, friendlyAuthMessage } from '../shared/auth-methods.js';
+import { createSignIn } from '../shared/signin.js';
 import { registerActions, installDelegation } from '../shared/actions.js';
 import { esc } from '../shared/esc.js';
 import { today, reportError, downloadBlob } from '../shared/format.js';
@@ -17,12 +18,15 @@ import {
 } from './views/forms.js';
 import { renderAdminMentees, renderAdminGraduations } from './views/admin.js';
 
+// Read an OAuth return error (e.g. Google account not invited) before
+// supabase-js handles the URL, then tidy the address bar.
+const redirectError = readAuthRedirectError();
+if (redirectError) clearAuthRedirectParams();
+
 const authOverlay = document.getElementById('auth-overlay');
-const authForm = document.getElementById('auth-form');
-const authMessage = document.getElementById('auth-message');
-const pendingBox = document.getElementById('auth-pending');
 const signOutBtn = document.getElementById('signout-btn');
 let loadedUserId = null;
+let mfaPromptFor = null;
 
 // ---------------------------------------------------------------------------
 // Mobile chrome (below md / 768px): off-canvas sidebar drawer (hamburger or the
@@ -464,26 +468,37 @@ function exportMenteeSummary(id) {
 }
 
 // ---------------------------------------------------------------------------
-// Auth (no public sign-up: accounts are created by invitation / by hand)
+// Auth (no public sign-up: accounts are created by invitation / by hand).
+// Sign-in UI + protocol: src/shared/signin.js and src/shared/auth-methods.js.
 // ---------------------------------------------------------------------------
-function showAuthMessage(text, kind = 'error') {
-  authMessage.textContent = text;
-  authMessage.classList.toggle('text-red-600', kind === 'error');
-  authMessage.classList.toggle('text-emerald-700', kind === 'info');
-  authMessage.classList.remove('hidden');
+function showAuth() {
+  authOverlay.classList.remove('hidden');
+  body.classList.add('auth-open');
 }
 
-function hideAuthMessage() {
-  authMessage.classList.add('hidden');
+function hideAuth() {
+  authOverlay.classList.add('hidden');
+  body.classList.remove('auth-open');
+}
+
+const signin = createSignIn({
+  root: authOverlay,
+  prefix: 'auth',
+  app: 'mentor',
+  allowPassword: true,
+  onSession: (session) => enterApp(session),
+  onSignOut: (btn) => doSignOut(btn),
+});
+
+function showAuthMessage(text, kind = 'error') {
+  signin.showMessage(text, kind);
 }
 
 function showPending(email) {
   body.classList.remove('app-ready');
-  authForm.classList.add('hidden');
-  document.getElementById('auth-magic').classList.add('hidden');
-  pendingBox.classList.remove('hidden');
   document.getElementById('auth-pending-email').textContent = email || '';
-  authOverlay.classList.remove('hidden');
+  signin.showPending();
+  showAuth();
 }
 
 // Enter the app for a confirmed session. Safe to call repeatedly; data is only
@@ -498,8 +513,9 @@ async function enterApp(session) {
     ({ role, profile } = await fetchRole(session.user.id));
   } catch (err) {
     loadedUserId = null;
+    signin.showEmail();
     showAuthMessage(err.message || String(err));
-    authOverlay.classList.remove('hidden');
+    showAuth();
     return;
   }
   if (role === 'mentee') {
@@ -510,93 +526,62 @@ async function enterApp(session) {
     showPending(session.user.email);
     return;
   }
+  // Two-step gate: only people who turned on an authenticator app (admins,
+  // from Profile) are asked for a code, and only while the session is aal1.
+  const mfa = await mfaGateStatus();
+  if (mfa.needed) {
+    loadedUserId = null; // re-enter once the code is verified
+    if (mfaPromptFor !== session.user.id) {
+      mfaPromptFor = session.user.id;
+      signin.showMfa(mfa.factorId, async (upgraded) => {
+        mfaPromptFor = null;
+        await enterApp(upgraded || session);
+      });
+    }
+    showAuth();
+    return;
+  }
+  mfaPromptFor = null;
+  signin.stop();
   state.user = session.user;
   state.role = role;
   state.profile = profile;
   const initial = parseHash(window.location.hash);
   state.currentView = initial.view;
   state.selectedMenteeId = initial.menteeId;
-  authOverlay.classList.add('hidden');
+  hideAuth();
   signOutBtn.classList.remove('hidden');
   body.classList.add('app-ready');
-  hideAuthMessage();
+  signin.clearMessage();
   updateAdminNav();
   await reload();
 }
 
-function leaveApp() {
+function leaveApp({ message } = {}) {
   resetState();
   loadedUserId = null;
+  mfaPromptFor = null;
   closeDrawer({ restoreFocus: false });
   closeHeaderMenu({ restoreFocus: false });
   document.getElementById('modal-root').innerHTML = '';
-  document.getElementById('auth-password').value = '';
   signOutBtn.classList.add('hidden');
-  body.classList.remove('app-ready', 'kb-open');
-  authForm.classList.remove('hidden');
-  document.getElementById('auth-magic').classList.remove('hidden');
-  pendingBox.classList.add('hidden');
-  authOverlay.classList.remove('hidden');
+  body.classList.remove('app-ready', 'kb-open', 'modal-open');
+  signin.showEmail();
+  if (message) showAuthMessage(message, 'info');
+  showAuth();
+  window.scrollTo(0, 0);
   render();
 }
 
-authForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
-  const submitBtn = document.getElementById('auth-submit');
-  hideAuthMessage();
-  submitBtn.disabled = true;
-  try {
-    const result = await supabase.auth.signInWithPassword({ email, password });
-    if (result.error) {
-      showAuthMessage(result.error.message);
-      return;
-    }
-    const session = result.data && result.data.session;
-    if (session) await enterApp(session);
-    else showAuthMessage('Sign-in did not return a session. Please try again.');
-  } catch (err) {
-    showAuthMessage(err.message || String(err));
-  } finally {
-    submitBtn.disabled = false;
-  }
-});
-
-document.getElementById('auth-magic').addEventListener('click', async (e) => {
-  const btn = e.currentTarget;
-  const email = document.getElementById('auth-email').value.trim();
-  hideAuthMessage();
-  if (!email) {
-    showAuthMessage('Enter your email first.');
-    return;
-  }
-  btn.disabled = true;
-  try {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false, emailRedirectTo: `${SITE_URL}/auth/confirm` },
-    });
-    // Same message whether or not the account exists (no account enumeration).
-    if (error && !/signups not allowed|not found|otp_disabled/i.test(error.message)) {
-      showAuthMessage(error.message);
-    } else {
-      showAuthMessage('If that email has an account, a sign-in link is on its way. Check your inbox.', 'info');
-    }
-  } finally {
-    btn.disabled = false;
-  }
-});
-
 async function doSignOut(btn) {
-  btn.disabled = true;
+  if (btn) btn.disabled = true;
   try {
     await signOut();
     leaveApp();
   } catch (err) {
     reportError(err);
   } finally {
-    btn.disabled = false;
+    if (btn) btn.disabled = false;
   }
 }
 signOutBtn.addEventListener('click', () => doSignOut(signOutBtn));
@@ -616,16 +601,14 @@ supabase.auth.onAuthStateChange((event, session) => {
 });
 
 supabase.auth.getSession().then(({ data: sessionData, error }) => {
-  if (error) {
-    showAuthMessage(`Could not restore session: ${error.message}`);
-    authOverlay.classList.remove('hidden');
-    return;
-  }
   if (sessionData && sessionData.session) {
     enterApp(sessionData.session);
-  } else {
-    authOverlay.classList.remove('hidden');
+    return;
   }
+  signin.showEmail();
+  if (redirectError) showAuthMessage(redirectErrorMessage(redirectError));
+  else if (error) showAuthMessage(`Could not restore your session. ${friendlyAuthMessage(error)}`);
+  showAuth();
 });
 
 // Initial render

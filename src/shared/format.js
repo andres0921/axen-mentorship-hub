@@ -55,7 +55,9 @@ export function reportError(err) {
 // Run a form submission: disables the submit button while working and reports
 // any error without navigating away.
 export async function runSubmit(form, fn) {
-  const btn = form.querySelector('[type="submit"]');
+  // The submit button may sit outside the form (<button form="…">).
+  const btn = form.querySelector('[type="submit"]')
+    || (form.id ? document.querySelector(`[type="submit"][form="${form.id}"]`) : null);
   if (btn) btn.disabled = true;
   try {
     await fn();

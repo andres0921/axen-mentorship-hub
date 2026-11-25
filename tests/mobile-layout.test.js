@@ -22,7 +22,9 @@ describe('index.html mobile chrome', () => {
   it('keeps every ID main.js relies on, exactly once', () => {
     for (const id of ['export-btn', 'add-mentee-btn', 'profile-btn', 'signout-btn', 'page-title', 'page-subtitle',
       'auth-overlay', 'auth-form', 'grad-badge', 'modal-root', 'app', 'sidebar', 'nav-toggle', 'nav-close',
-      'nav-backdrop', 'header-menu', 'header-menu-btn', 'app-header', 'mentor-tabbar', 'tabbar-more', 'fab-add']) {
+      'nav-backdrop', 'header-menu', 'header-menu-btn', 'app-header', 'mentor-tabbar', 'tabbar-more', 'fab-add',
+      'auth-email', 'auth-submit', 'auth-message', 'auth-code-form', 'auth-code', 'auth-passkey', 'auth-google',
+      'auth-use-password', 'auth-mfa-form', 'auth-pending']) {
       expect(doc.querySelectorAll(`#${id}`).length, id).toBe(1);
     }
     const ids = [...doc.querySelectorAll('[id]')].map(el => el.id);
@@ -57,6 +59,18 @@ describe('index.html mobile chrome', () => {
     const withHandlers = [...doc.querySelectorAll('*')]
       .filter(el => [...el.attributes].some(a => /^on/i.test(a.name)));
     expect(withHandlers).toEqual([]);
+  });
+});
+
+describe('index.html sign-in', () => {
+  it('starts signed-out with the shell-hiding class and a loading step (no form flash)', () => {
+    expect(classes(doc.body)).toContain('auth-open');
+    const steps = [...doc.querySelectorAll('#auth-overlay [data-auth-step]')];
+    expect(steps.map(s => s.dataset.authStep).sort()).toEqual(['code', 'email', 'loading', 'mfa', 'pending']);
+    expect(steps.filter(s => !classes(s).includes('hidden')).map(s => s.dataset.authStep)).toEqual(['loading']);
+  });
+  it('keeps Google and passkey hidden until the app knows they work', () => {
+    for (const id of ['auth-google', 'auth-passkey']) expect(classes(doc.getElementById(id))).toContain('hidden');
   });
 });
 

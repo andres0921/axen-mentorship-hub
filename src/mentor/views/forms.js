@@ -7,6 +7,7 @@ import {
   loadFromSupabase, saveMentee, saveMenteeNotes, saveCheckIn, saveFeedback, saveKickoff, saveEscalation, saveGraduation,
   updateMyProfile, linkHelpRequestToEscalation,
 } from '../data.js';
+import { mountSecurityPanel } from '../../shared/security-panel.js';
 
 // Below md: 44px tall controls and 16px text (no iOS focus zoom); md+ unchanged.
 const INPUT = 'w-full border border-navy-200 rounded-lg px-3 py-2 max-md:min-h-[44px] max-md:text-base';
@@ -760,19 +761,35 @@ export function openEditMenteeModal(id) {
 export function openProfileModal() {
   const p = state.profile || {};
   const modal = document.getElementById('modal-root');
+  // The Save bar sits outside both forms (button form="profile-form") so it
+  // stays the last, sticky row of the sheet; the security panel below the
+  // profile fields acts immediately and has its own small forms.
   modal.innerHTML = modalShell(`
     <h3 class="font-display text-xl mb-1">Your profile</h3>
     <p class="text-sm text-navy-700/60 mb-4">Your mentees see this in their portal.</p>
     <form id="profile-form" class="space-y-3">
-      <input name="full_name" placeholder="Full name" value="${esc(p.full_name || '')}" class="${INPUT}">
-      <input name="phone" type="tel" autocomplete="tel" placeholder="Phone" value="${esc(p.phone || '')}" class="${INPUT}">
-      <input name="booking_url" type="url" placeholder="Booking link (https://…)" value="${esc(p.booking_url || '')}" class="${INPUT}">
-      <div class="${MODAL_ACTIONS}">
-        <button type="submit" class="btn-primary px-6 py-2 rounded-lg ${MODAL_BTN}">Save</button>
-        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border ${MODAL_BTN}">Cancel</button>
-      </div>
+      <input name="full_name" placeholder="Full name" aria-label="Full name" value="${esc(p.full_name || '')}" class="${INPUT}">
+      <input name="phone" type="tel" autocomplete="tel" placeholder="Phone" aria-label="Phone" value="${esc(p.phone || '')}" class="${INPUT}">
+      <input name="booking_url" type="url" placeholder="Booking link (https://…)" aria-label="Booking link" value="${esc(p.booking_url || '')}" class="${INPUT}">
     </form>
+    <div id="profile-security" class="mt-6 pt-5 border-t border-navy-100"></div>
+    <div class="${MODAL_ACTIONS} mt-4">
+      <button type="submit" form="profile-form" class="btn-primary px-6 py-2 rounded-lg ${MODAL_BTN}">Save</button>
+      <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border ${MODAL_BTN}">Cancel</button>
+    </div>
   `);
+  const security = document.getElementById('profile-security');
+  const panel = mountSecurityPanel(security, { totp: isAdmin() });
+  // Drop an unfinished authenticator enrollment when the sheet goes away.
+  if (panel) {
+    const watch = new MutationObserver(() => {
+      if (!security.isConnected) {
+        watch.disconnect();
+        panel.destroy();
+      }
+    });
+    watch.observe(modal, { childList: true });
+  }
   document.getElementById('profile-form').onsubmit = async (e) => {
     e.preventDefault();
     const form = e.target;

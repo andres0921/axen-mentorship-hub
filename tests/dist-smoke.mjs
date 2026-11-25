@@ -74,6 +74,12 @@ for (const page of PAGES) {
     if (!/name="viewport"[^>]*viewport-fit=cover/.test(html)) fail('index.html: viewport must include viewport-fit=cover');
     if (!/<link\b[^>]*rel="manifest"[^>]*href="\/manifest\.webmanifest"/.test(html)) fail('index.html: manifest link missing');
   }
+  // sign-in: 6-digit email code is the primary path on both apps
+  if (page === 'index.html' || page === 'mentee/index.html') {
+    const p = page === 'index.html' ? 'auth' : 'signin';
+    if (!new RegExp(`id="${p}-code"[^>]*autocomplete="one-time-code"`).test(html)) fail(`${page}: #${p}-code one-time-code input missing`);
+    if (!/Email me a sign-in code/.test(html)) fail(`${page}: "Email me a sign-in code" button missing`);
+  }
 }
 
 // 3. secrets / legacy leftovers in ANY output file

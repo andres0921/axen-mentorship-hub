@@ -429,6 +429,7 @@ export function accountScreen(email) {
           <input name="phone" type="tel" autocomplete="tel" value="${esc(me.phone || '')}" class="${INPUT}"></label>
         <button type="submit" class="w-full py-3 rounded-xl border border-navy-200 bg-white">Save phone</button>
       </form>
+      <div id="security-panel" class="${CARD}"></div>
       ${mentorCard(m.mentor)}
       <button type="button" data-action="sign-out" class="w-full py-3 rounded-xl border border-red-200 text-red-700 bg-white">Sign out</button>
     </div>`;

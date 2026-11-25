@@ -21,7 +21,7 @@ export function renderDashboardSkeleton() {
     </div>`;
 }
 
-export function renderDashboard() {
+export function renderDashboard({ listOnly = false } = {}) {
   setHeader('Dashboard', 'Overview of your mentees');
   const mine = myMentees();
 
@@ -41,15 +41,15 @@ export function renderDashboard() {
   const pendingGrads = isAdmin() ? state.graduations.filter(g => g.status === 'submitted').length : 0;
 
   let html = '';
-  if (openHelp || toReview || pendingGrads) {
+  if (!listOnly && (openHelp || toReview || pendingGrads)) {
     const item = (menteeId, label, cls) => `
       <button type="button" data-action="open-mentee" data-mentee-id="${esc(menteeId)}" class="w-full text-left flex items-center justify-between gap-3 py-2 border-b border-navy-50 hover:bg-navy-50 px-2 rounded max-md:flex-wrap max-md:gap-y-1 max-md:min-h-[44px]">
         <span class="font-medium min-w-0 break-words">${esc(nameOf(menteeId))}</span>
         <span class="text-xs px-2 py-0.5 rounded-full ${cls}">${esc(label)}</span>
       </button>`;
     html += `<div class="card p-4 mb-6 text-sm">
-      <div class="flex flex-wrap gap-3 items-center mb-2">
-        <span class="font-medium">Needs attention:</span>
+      <h2 class="font-medium mb-2">Needs attention</h2>
+      <div class="flex flex-wrap gap-2 mb-2">
         ${openHelp ? `<span class="px-2.5 py-1 rounded-full bg-red-100 text-red-800">${openHelp} open help request${openHelp === 1 ? '' : 's'}</span>` : ''}
         ${toReview ? `<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">${toReview} self check-in${toReview === 1 ? '' : 's'} to review</span>` : ''}
         ${pendingGrads ? `<button type="button" data-action="nav" data-view="admin-graduations" class="px-2.5 py-1 rounded-full bg-gold-100 text-gold-800 underline max-md:min-h-[44px] max-md:px-3">${pendingGrads} graduation${pendingGrads === 1 ? '' : 's'} awaiting approval</button>` : ''}
@@ -59,7 +59,7 @@ export function renderDashboard() {
     </div>`;
   }
 
-  html += `
+  if (!listOnly) html += `
     <div class="grid grid-cols-3 gap-2 mb-6 md:gap-6 md:mb-8">
       <div class="card p-3 md:p-6">
         <div class="text-xs md:text-sm text-navy-700/60">Active<span class="max-md:hidden"> Mentees</span></div>
@@ -73,16 +73,18 @@ export function renderDashboard() {
         <div class="text-xs md:text-sm text-navy-700/60">Graduated</div>
         <div class="text-2xl md:text-4xl font-display mt-0.5 md:mt-1 text-emerald-700">${graduated}</div>
       </div>
-    </div>
-    <!-- Phones: "Your Mentees" comes first so mentee cards are above the fold;
-         md+: original order (Feedback Due, then Your Mentees). -->
+    </div>`;
+  // Phones: "Your Mentees" comes first so mentee cards are above the fold;
+  // md+: original order (Feedback Due, then Your Mentees). The Mentees view
+  // (listOnly) is just the searchable list.
+  html += `
     <div class="flex flex-col">
-    <section class="max-md:order-2">
+    ${listOnly ? '' : `<section class="max-md:order-2">
       <h2 class="section-title text-xl md:text-2xl mb-3 md:mb-4">Feedback Due</h2>
       <div id="feedback-due" class="mb-6 md:mb-8"></div>
-    </section>
+    </section>`}
     <section class="max-md:order-1 max-md:mb-6">
-    <h2 class="section-title text-xl md:text-2xl mb-3 md:mb-4">Your Mentees</h2>
+    ${listOnly ? '' : '<h2 class="section-title text-xl md:text-2xl mb-3 md:mb-4">Your Mentees</h2>'}
     <div class="mb-4 flex gap-3${mine.length ? '' : ' hidden'}">
       <input id="mentee-search" type="search" placeholder="Search name..." aria-label="Search mentees by name" class="border border-navy-200 rounded-lg px-3 py-2 text-sm max-sm:flex-1 max-sm:min-w-0 max-md:min-h-[44px] max-md:text-base" data-input-action="filter-mentees">
       <select id="status-filter" aria-label="Filter by status" class="border border-navy-200 rounded-lg px-3 py-2 text-sm max-sm:w-36 max-sm:shrink-0 max-md:min-h-[44px] max-md:text-base" data-input-action="filter-mentees">
@@ -108,10 +110,10 @@ export function renderDashboard() {
       <div class="mentee-card tap-row card p-6 max-md:p-4 cursor-pointer" data-action="open-mentee" data-mentee-id="${esc(m.id)}">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <div class="font-semibold text-lg break-words leading-snug">${esc(m.fullName)}</div>
+            <div class="font-semibold text-lg break-words leading-snug max-md:line-clamp-2" title="${esc(m.fullName)}">${esc(m.fullName)}</div>
           </div>
-          <div class="shrink-0 flex items-center gap-1">
-            <span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}" data-status>${esc(m.status)}</span>
+          <div class="shrink-0 flex items-center gap-1 pt-0.5">
+            <span class="text-xs px-2.5 py-1 rounded-full whitespace-nowrap ${statusClass(m.status)}" data-status>${esc(m.status)}</span>
             ${CHEVRON}
           </div>
         </div>
@@ -200,7 +202,7 @@ export function filterMentees() {
 }
 
 export function renderMentees() {
-  renderDashboard(); // reuse for now
+  renderDashboard({ listOnly: true });
   setHeader('Mentees', 'All students in the program');
 }
 

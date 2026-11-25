@@ -106,6 +106,91 @@ input:focus, textarea:focus, select:focus {
 }
 
 /* ---------------------------------------------------------------------------
+   Sign-in (mentor overlay + mentee portal share this; src/shared/signin.js).
+   Elements that are toggled with Tailwind's `hidden` never set `display` here
+   except through :not(.hidden), so `hidden` always wins.
+   --------------------------------------------------------------------------- */
+.auth-brand { display: flex; align-items: center; gap: 0.875rem; margin: 0 0.25rem 1.25rem; }
+.auth-brand-logo { width: 3rem; height: 3rem; flex-shrink: 0; object-fit: contain; }
+.auth-title { font-family: 'Playfair Display', serif; font-size: 1.5rem; line-height: 1.2; color: #0c1424; letter-spacing: -0.01em; }
+.auth-lead { margin-top: 0.375rem; font-size: 0.9375rem; line-height: 1.45; color: rgba(30, 42, 74, 0.75); }
+.auth-label { display: block; font-size: 0.875rem; font-weight: 500; color: #1e2a4a; }
+.auth-input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.75rem 1rem;
+  font-size: 16px; /* 16px+: iOS doesn't zoom on focus */
+  color: #0c1424;
+  background: #fff;
+  border: 1px solid #cfd8ea;
+  border-radius: 0.75rem;
+}
+.auth-code-input {
+  font-size: 1.625rem;
+  font-weight: 600;
+  letter-spacing: 0.45em;
+  text-indent: 0.45em; /* balances the trailing letter-spacing so digits look centred */
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.auth-primary { width: 100%; min-height: 3rem; padding: 0.75rem 1rem; border-radius: 0.75rem; font-size: 1rem; }
+.auth-alt { margin-top: 1.25rem; }
+.auth-divider { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; font-size: 0.8125rem; color: rgba(30, 42, 74, 0.5); }
+.auth-divider::before, .auth-divider::after { content: ""; flex: 1; height: 1px; background: #e8edf7; }
+.auth-alt-list { display: grid; gap: 0.5rem; }
+.auth-alt-btn:not(.hidden) { display: flex; }
+.auth-alt-btn {
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.625rem 1rem;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: #0c1424;
+  background: #fff;
+  border: 1px solid #cfd8ea;
+  border-radius: 0.75rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.auth-alt-btn:hover { background: #f4f6fb; border-color: #a9b7d3; }
+.auth-alt-btn svg { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+.auth-alt-btn:focus-visible, .auth-link:focus-visible, .auth-primary:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+.auth-hint { margin-top: 0.875rem; font-size: 0.8125rem; line-height: 1.45; color: rgba(30, 42, 74, 0.65); }
+.auth-row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 0.75rem; margin-top: 0.25rem; }
+.auth-link {
+  min-height: 2.75rem;
+  padding: 0 0.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #94690d;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.auth-link:disabled { color: rgba(30, 42, 74, 0.5); text-decoration: none; opacity: 1; }
+.auth-message { margin-top: 1rem; padding: 0.625rem 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; line-height: 1.4; text-align: center; color: #b91c1c; background: #fef2f2; }
+.auth-message[data-kind="info"] { color: #047857; background: #ecfdf5; }
+.auth-foot { margin-top: 1.25rem; text-align: center; font-size: 0.8125rem; color: rgba(255, 255, 255, 0.7); }
+.auth-foot a { color: #fff; text-decoration: underline; text-underline-offset: 3px; }
+.auth-loading:not(.hidden) { display: flex; }
+.auth-loading { align-items: center; justify-content: center; gap: 0.75rem; min-height: 8rem; font-size: 0.9375rem; color: rgba(30, 42, 74, 0.7); }
+.auth-spinner { width: 1.25rem; height: 1.25rem; border-radius: 9999px; border: 2px solid #e8edf7; border-top-color: var(--gold); animation: authSpin 0.8s linear infinite; }
+@keyframes authSpin { to { transform: rotate(360deg); } }
+
+/* Mentee portal sign-in: full-screen brand page (the mentor overlay matches
+   it below md; md+ the mentor keeps its centered card over the blurred app). */
+.auth-screen {
+  min-height: 100vh;
+  min-height: 100dvh;
+  justify-content: flex-start;
+  background: radial-gradient(120% 60% at 50% 0%, #1e2a4a 0%, #0c1424 70%);
+  padding: max(2.5rem, calc(env(safe-area-inset-top, 0px) + 1.5rem)) max(1rem, env(safe-area-inset-right, 0px)) max(1.5rem, env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px));
+}
+@media (min-width: 768px) { .auth-screen { justify-content: center; } }
+body.auth-open #portal-header { display: none; }
+
+/* ---------------------------------------------------------------------------
    Mentor app: native-feel mobile layer (below Tailwind's md breakpoint, 768px).
    Everything visual here sits inside max-width 767.98px (or is display:none
    by default and only switched on there), so md+ is untouched. Every class
@@ -137,9 +222,25 @@ input:focus, textarea:focus, select:focus {
     background-color: rgba(255, 255, 255, 0.92);
     box-shadow: 0 6px 16px -10px rgba(12, 20, 36, 0.35);
   }
+  /* --- Signed out: sign-in is a clean full-screen page, no app shell ----- */
+  body.auth-open #sidebar,
+  body.auth-open #nav-backdrop,
+  body.auth-open main,
+  body.auth-open .mentor-tabbar,
+  body.auth-open .mentor-fab,
+  body.auth-open #modal-root { display: none !important; }
   .auth-overlay {
-    padding: max(1rem, var(--safe-top)) max(1rem, var(--safe-right)) max(1rem, var(--safe-bottom)) max(1rem, var(--safe-left));
+    position: relative;
+    inset: auto;
+    min-height: 100vh;
+    min-height: 100dvh;
+    align-items: flex-start;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: radial-gradient(120% 60% at 50% 0%, #1e2a4a 0%, #0c1424 70%);
+    padding: max(2.5rem, calc(var(--safe-top) + 1.5rem)) max(1rem, var(--safe-right)) max(1.5rem, var(--safe-bottom)) max(1rem, var(--safe-left));
   }
+  .auth-overlay .auth-column { max-height: none; overflow: visible; }
   #app {
     padding-left: max(1rem, var(--safe-left));
     padding-right: max(1rem, var(--safe-right));
@@ -243,7 +344,10 @@ input:focus, textarea:focus, select:focus {
   /* Room for the tab bar (and the FAB where it shows) under the content. */
   body.app-ready main { padding-bottom: calc(var(--mentor-tabbar-h) + var(--safe-bottom)); }
   body.app-ready[data-view="dashboard"] main,
-  body.app-ready[data-view="mentees"] main { padding-bottom: calc(var(--mentor-tabbar-h) + var(--safe-bottom) + 4.5rem); }
+  body.app-ready[data-view="mentees"] main { padding-bottom: calc(var(--mentor-tabbar-h) + var(--safe-bottom) + 6.5rem); }
+  /* Keyboard / programmatic scrolling never parks a card under the FAB. */
+  body.app-ready[data-view="dashboard"] .mentee-card,
+  body.app-ready[data-view="mentees"] .mentee-card { scroll-margin-bottom: calc(var(--mentor-tabbar-h) + var(--safe-bottom) + 6.5rem); }
 
   /* --- Floating add button (Dashboard / Mentees only) -------------------- */
   body.app-ready[data-view="dashboard"] .mentor-fab,
@@ -342,4 +446,5 @@ input:focus, textarea:focus, select:focus {
   .tap-row:active, .mentor-fab:active, .mentor-tab:active svg { transform: none; }
   .sheet, .sheet-backdrop, .is-closing .sheet, .is-closing.sheet-backdrop,
   .header-menu.is-open, .mentor-app .view-enter { animation: none; }
+  .auth-spinner { animation-duration: 2.4s; }
 }

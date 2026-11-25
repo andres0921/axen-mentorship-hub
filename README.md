@@ -7,8 +7,8 @@ Web app for AXEN Xcelerate University mentors and their mentees, served at
 
 | Page | Who | Sign-in |
 |---|---|---|
-| `/` | mentors and admin (Andres) | password, or email link |
-| `/mentee/` | mentees (mobile-first, bottom tab bar) | email link only (invite from their mentor) |
+| `/` | mentors and admin (Andres) | 6-digit email code (or the link in the same email), passkey, Google, or password; optional authenticator app for admins |
+| `/mentee/` | mentees (mobile-first, bottom tab bar) | 6-digit email code (or the link in the same email), passkey, or Google; never a password (invite from their mentor) |
 | `/auth/confirm` | everyone arriving from an email link | **Continue** button → `verifyOtp` → redirect by role |
 
 There is no public sign-up. Roles live in `public.profiles.role`
