@@ -1,58 +1,94 @@
 # AXEN Mentorship Hub
 
-A static web app that AXEN Xcelerate University mentors use to track their mentees. Data is stored in **Supabase** (Postgres + Auth). Each mentor signs in with email and password and sees only their own records, which Row Level Security enforces.
+Web app for AXEN Xcelerate University mentors and their mentees, served at
+`https://mentorship.andresaviles.com`. Vanilla JS (ES modules) built with **Vite**
+(multi-page) and Tailwind (compiled via PostCSS). Data and auth are in **Supabase**
+(project `agent-mentorship-hub`), and Row Level Security protects the data.
+
+| Page | Who | Sign-in |
+|---|---|---|
+| `/` | mentors and admin (Andres) | password, or email link |
+| `/mentee/` | mentees (mobile-first, bottom tab bar) | email link only (invite from their mentor) |
+| `/auth/confirm` | everyone arriving from an email link | **Continue** button → `verifyOtp` → redirect by role |
+
+There is no public sign-up. Roles live in `public.profiles.role`
+(`pending | mentee | mentor | admin`) and are never read from user metadata.
 
 ## Features
-- Email/password sign-up and sign-in (Supabase Auth), with a Sign out button
-- Dashboard with mentee cards, scores, trends, status filter, and "feedback due" reminders
-- Mentee detail: profile, graduation readiness, score trend chart, kickoff sessions, full check-in history
-- Forms: Check-In (matches the mentor toolkit), Escalation, Graduation Recommendation, Mentor Feedback, Kickoff Session
-- Open-commitments view across all mentees
-- JSON export of loaded data and a per-mentee text summary
+- **Mentors:** dashboard with needs-attention items, mentee list and filters, mentee
+  detail (graduation progress, score trends, timeline, commitments), check-in /
+  escalation / graduation / feedback / kickoff forms, edit mentee, open-commitments
+  view, JSON export (sensitive; no auth user object) and per-mentee text summary.
+  Mentor-only notes are kept in private side tables.
+- **Portal access** per mentee: invite / resend / revoke through the `invite-mentee`
+  Edge Function. Per-item share toggles plus "Share all past check-ins / feedback".
+  Self check-ins (mark reviewed) and help requests (respond, resolve, convert to
+  escalation) appear on the mentee page.
+- **Admin:** all mentees with their mentor, and pending graduations to approve or
+  decline. Submitting a recommendation no longer auto-graduates.
+- **Mentees:** welcome / first-run, home (stage, graduation progress, next
+  check-in, current commitment, latest feedback), weekly self check-in (editable
+  until reviewed), sessions (kickoff plus shared check-ins and score trend),
+  feedback ("Got it"), get help, account (phone, sign out).
+
+Program numbers (stage targets, graduation requirement) are **unconfirmed
+placeholders** in one place: `public.program_settings`, with
+`src/shared/config.js` `PROGRAM` as the fallback.
 
 ## Project layout
 ```
-index.html            App shell, Tailwind config, auth overlay
-css/styles.css        Custom styles
-js/app.js             All app logic and the Supabase client
-supabase/schema.sql   Database schema, RLS policies (run once in Supabase)
-assets/               Logo
+index.html               mentor/admin page          -> src/mentor/main.js
+mentee/index.html        mentee portal               -> src/mentee/main.js
+auth/confirm/index.html  email-link confirm page     -> src/auth/confirm.js
+src/shared/              supabase client, config, auth/role routing, redirect (next) sanitiser,
+                         esc(), formatting, program rules, chart, event delegation
+src/mentor/              data.js, state.js, views/*
+src/mentee/              data.js (mentee-safe queries only), views/screens.js
+src/styles.css           Tailwind + custom styles
+public/assets/           logo (copied to dist/assets/)
+supabase/schema.sql      original schema (already applied; do NOT re-run after migrations)
+supabase/migrations/     0001..0004 + README (apply order, admin setup)
+supabase/functions/invite-mentee/   Edge Function (invite / resend / revoke)
+supabase/tests/, scripts/test-rls.sh  RLS test suite (local throwaway Postgres)
+tests/                   vitest unit tests + dist smoke test
+vercel.json              build config, clean URLs, security headers (CSP etc.)
+docs/                    plan and Andres's launch steps
 ```
 
-## One-time Supabase setup (Andres)
-The app expects six tables: `mentees`, `check_ins`, `escalations`, `graduation_recommendations`, `mentor_feedback`, and `kickoff_sessions`. You create them yourself; the app never runs migrations.
-
-1. Open the **agent-mentorship-hub** Supabase project → **SQL Editor** → **New query**.
-2. Paste the full contents of `supabase/schema.sql` and click **Run**.
-   - The script is idempotent, so you can re-run it safely after schema changes.
-   - It enables RLS on every table and adds own-row SELECT/INSERT/UPDATE/DELETE policies (`user_id = auth.uid()`).
-3. **Authentication → Providers → Email** must be enabled.
-
-### Email confirmation
-If **Confirm email** is on in Supabase Auth (the default), sign-up does **not** create a session. The app keeps the login screen open and shows *"Check your email to confirm your account."* The user clicks the link in the email and then signs in. If the confirmation link redirects somewhere unexpected, set **Authentication → URL Configuration → Site URL** to wherever the app is served (for example `http://localhost:8000` or your production domain).
-
-### Client configuration
-`js/app.js` sets the Supabase project URL and the public **anon** key at the top of the file. This app uses the dedicated **agent-mentorship-hub** project. The anon key is meant to be public, and RLS is what protects the data. Never put the `service_role` key in this repo or in any client code.
-
-## Run locally
-This is a static site with no build step. Serve the folder over HTTP rather than opening the file directly, so that Supabase Auth redirects and storage behave normally:
-
+## Development
 ```bash
-cd axen-mentorship-hub
-python3 -m http.server 8000
-# or
-npx serve .
+npm install
+npm run dev        # http://localhost:5173  (/, /mentee/, /auth/confirm)
+npm run build      # -> dist/
+npm run preview    # serve dist/ on http://localhost:5173
 ```
+The dev server talks to the live Supabase project (public URL and anon key in
+`src/shared/config.js`; the anon key is public by design). `http://localhost:5173/**`
+must be in Supabase Auth's redirect URLs for email links to come back to dev.
+Never put the `service_role` key in this repo or in client code.
 
-Then visit http://localhost:8000, create an account (confirm it by email if required), and sign in.
+No inline scripts or `on*=` handlers: the CSP in `vercel.json` forbids them. Use
+`data-action` attributes (`src/shared/actions.js`). Every database or user value
+interpolated into HTML must go through `esc()`. URLs go through `safeUrl()`.
+
+## Tests
+```bash
+npm test           # vitest unit tests (tests/**/*.test.js) + dist smoke test (needs a build first)
+npm run test:unit  # unit tests only
+npm run test:dist  # dist/ checks: pages exist, referenced files exist, no inline scripts/handlers, no secrets
+npm run test:rls   # RLS/migration suite against a throwaway LOCAL Postgres
+```
+`test:rls` needs Postgres 17 binaries on PATH (`/usr/lib/postgresql/17/bin`) and a
+local server (default socket `/tmp`, port `54329`; override with `PGHOST`, `PGPORT`,
+`PGUSER`). It refuses non-local hosts.
 
 ## Deploying
-Any static host works: Netlify, Vercel, Cloudflare Pages, or GitHub Pages. After deploying, add the production URL to **Supabase → Authentication → URL Configuration** (Site URL and Redirect URLs) so that confirmation emails link back to the live app.
+Vercel builds from `vercel.json` (`npm ci && npm run build`, output `dist/`). The
+one-time Supabase, Resend and DNS setup, migration timing, admin role and Edge
+Function deploy are in **`docs/ANDRES_SETUP_STEPS.md`** and
+**`supabase/migrations/README.md`**.
 
-## Data & backups
-All data lives in Supabase. The **Export Data** button downloads a JSON snapshot of what is currently loaded for the signed-in mentor. Use Supabase's own backups for full database recovery.
-
-## Next improvements
-- Edit/delete for check-ins, feedback, and kickoffs
-- Escalation and graduation history on the mentee page
-- Multi-mentor / admin views
+## Data and backups
+All data lives in Supabase. Use Supabase backups for recovery. The mentor **Export
+Data** button downloads a JSON snapshot that includes mentor-only notes, so treat it
+as sensitive.

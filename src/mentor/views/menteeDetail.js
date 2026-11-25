@@ -1,6 +1,6 @@
 import { esc, safeUrl } from '../../shared/esc.js';
 import { formatDate, formatDateTime, daysInProgram, PRIOR_COMMITMENT_LABELS } from '../../shared/format.js';
-import { closedRequired, scoreThreshold } from '../../shared/program.js';
+import { computeGraduationProgress } from '../../shared/program.js';
 import { buildTrendChart } from '../../shared/chart.js';
 import { state, isAdmin, isMyMentee, mentorName } from '../state.js';
 import { dom, setHeader, statusClass, detailLine, sharedBadge, MENTOR_ONLY_BADGE } from './common.js';
@@ -62,14 +62,18 @@ const REC_STATUS = { submitted: 'Submitted · awaiting admin approval', approved
 export function buildReadiness(m, checkIns) {
   const latest = checkIns[checkIns.length - 1] || {};
   const rec = latestGraduation(m.id);
-  const required = closedRequired();
-  const threshold = scoreThreshold();
-  const closed = latest.totalClosed || 0;
+  const p = computeGraduationProgress({
+    total_closed: latest.totalClosed,
+    light_speed_vt_progress: latest.lightSpeedVtProgress,
+    lofty_crm_usage: latest.loftyCrmUsage,
+  }, rec);
+  const required = p.closed_required;
+  const closed = p.closed;
   const items = [
-    { label: `${required} Closed Transactions`, done: closed >= required || !!(rec && rec.closed_transactions_confirmed), detail: `${closed}/${required}` },
-    { label: 'LightSpeed VT Complete', done: (latest.lightSpeedVtProgress || 0) >= threshold || !!(rec && rec.light_speed_vt_completed), detail: `Score ${latest.lightSpeedVtProgress || '—'}` },
-    { label: 'Lofty CRM Proficient', done: (latest.loftyCrmUsage || 0) >= threshold || !!(rec && rec.lofty_crm_proficient), detail: `Score ${latest.loftyCrmUsage || '—'}` },
-    { label: 'Nexa Connected', done: !!(rec && rec.nexa_lending_connected), detail: rec ? (rec.nexa_lending_connected ? 'Confirmed' : 'Not confirmed') : 'Confirm in graduation form' },
+    { label: `${required} Closed Transactions`, done: p.closed_done, detail: `${closed}/${required}` },
+    { label: 'LightSpeed VT Complete', done: p.vt_complete, detail: `Score ${latest.lightSpeedVtProgress || '—'}` },
+    { label: 'Lofty CRM Proficient', done: p.lofty_proficient, detail: `Score ${latest.loftyCrmUsage || '—'}` },
+    { label: 'Nexa Connected', done: p.nexa_connected, detail: rec ? (rec.nexa_lending_connected ? 'Confirmed' : 'Not confirmed') : 'Confirm in graduation form' },
     { label: 'Mentor Recommendation', done: !!rec, detail: rec ? (REC_STATUS[rec.status] || rec.status) : 'Submit when ready' },
   ];
   const doneCount = items.filter(i => i.done).length;
