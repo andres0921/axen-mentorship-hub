@@ -13,7 +13,7 @@ import { renderDashboard, renderMentees, renderCommitments, filterMentees } from
 import { renderMenteeDetail } from './views/menteeDetail.js';
 import {
   renderCheckInForm, renderEscalationForm, renderGraduationForm, renderFeedbackForm, renderKickoffForm,
-  openAddMenteeModal, openProfileModal, updateSelfCheckInHint, prefillFromSelfCheckIn,
+  openAddMenteeModal, openEditMenteeModal, openProfileModal, updateSelfCheckInHint, prefillFromSelfCheckIn,
 } from './views/forms.js';
 import { renderAdminMentees, renderAdminGraduations } from './views/admin.js';
 
@@ -110,6 +110,11 @@ registerActions({
   'retry-load': () => reload(),
   'close-modal': () => { document.getElementById('modal-root').innerHTML = ''; },
   'export-summary': (el) => exportMenteeSummary(el.dataset.menteeId),
+  'edit-mentee': (el) => openEditMenteeModal(el.dataset.menteeId),
+  'convert-help': (el) => {
+    const h = state.helpRequests.find(x => x.id === el.dataset.id);
+    if (h) navigate('escalation', { prefill: h.mentee_id, helpRequestId: h.id });
+  },
   'checkin-mentee-changed': () => updateSelfCheckInHint(),
   'prefill-from-self': (el) => prefillFromSelfCheckIn(el.dataset.id),
 
@@ -173,6 +178,7 @@ window.addEventListener('popstate', () => {
   state.currentView = view;
   state.selectedMenteeId = menteeId;
   state.prefillMenteeId = null;
+  state.escalationHelpId = null;
   render();
 });
 
@@ -209,7 +215,7 @@ function exportMenteeSummary(id) {
     'Recent Check-Ins:',
     ...checks.slice(0, 5).map(c => `#${c.checkInNumber} ${c.date} — Lead:${c.leadGenerationActivity || '—'} VT:${c.lightSpeedVtProgress || '—'} CRM:${c.loftyCrmUsage || '—'}`),
   ].join('\n');
-  downloadBlob(text, 'text/plain', `${(m.fullName || 'mentee').replace(/\s+/g, '-')}-summary.txt`);
+  downloadBlob(text, 'text/plain', `${(m.fullName || 'mentee').replace(/[^\w.-]+/g, '-').replace(/^-+|-+$/g, '') || 'mentee'}-summary.txt`);
 }
 
 // ---------------------------------------------------------------------------

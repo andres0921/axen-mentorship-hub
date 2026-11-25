@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0c1424">
+  <title>My Mentorship · AXEN</title>
+  <link rel="icon" href="/assets/axen-logo-white.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <script type="module" src="/src/mentee/main.js"></script>
+</head>
+<body class="bg-navy-50 text-navy-900 font-sans antialiased">
+  <header class="sticky top-0 z-20 bg-navy-900 text-white">
+    <div class="max-w-xl mx-auto px-4 py-3 flex items-center gap-3">
+      <img src="/assets/axen-logo-white.png" alt="AXEN Realty" class="h-7">
+      <div class="leading-tight">
+        <div class="font-display text-lg">AXEN</div>
+        <div class="text-xs text-white/60">Mentorship portal</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Sign in (magic link only) -->
+  <section id="signin" class="hidden max-w-xl mx-auto px-4 py-8">
+    <div class="card p-6">
+      <h1 class="font-display text-2xl">Sign in</h1>
+      <p class="text-sm text-navy-700/70 mt-1">Enter the email your mentor invited. We’ll email you a sign-in link, no password needed.</p>
+      <form id="signin-form" class="space-y-4 mt-5">
+        <input type="email" id="signin-email" name="email" placeholder="you@example.com" required autocomplete="email" inputmode="email" class="w-full border border-navy-200 rounded-xl px-4 py-3 text-base">
+        <button type="submit" class="w-full btn-primary py-3 rounded-xl text-base">Email me a sign-in link</button>
+      </form>
+      <p id="signin-message" class="hidden text-sm mt-4" role="status"></p>
+      <p class="text-xs text-navy-700/50 mt-6">Mentor? Sign in at <a href="/" class="underline">the mentor hub</a>.</p>
+    </div>
+  </section>
+
+  <!-- Signed in but not (or no longer) linked to a mentee record -->
+  <section id="not-set-up" class="hidden max-w-xl mx-auto px-4 py-8">
+    <div class="card p-6 text-center space-y-3">
+      <p class="font-medium">Your account isn’t set up yet.</p>
+      <p class="text-sm text-navy-700/70">You’re signed in as <span id="not-set-up-email" class="font-medium break-all"></span>, but this account isn’t connected to the mentorship program. Contact your mentor.</p>
+      <button type="button" data-action="sign-out" class="text-sm px-4 py-2 rounded-lg border border-navy-200">Sign out</button>
+    </div>
+  </section>
+
+  <section id="loading" class="max-w-xl mx-auto px-4 py-10 text-center text-sm text-navy-700/60">Loading…</section>
+
+  <main id="app" class="hidden max-w-xl mx-auto px-4 pt-5 pb-tabbar"></main>
+
+  <nav id="tabbar" class="hidden tabbar fixed bottom-0 inset-x-0 z-20 bg-white border-t border-navy-100" aria-label="Portal sections">
+    <div class="max-w-xl mx-auto grid grid-cols-6 text-[11px]">
+      <a href="#home" data-tab="home" class="tab-btn flex flex-col items-center gap-0.5 py-2 text-navy-700/70"><span class="text-lg" aria-hidden="true">⌂</span>Home</a>
+      <a href="#checkin" data-tab="checkin" class="tab-btn flex flex-col items-center gap-0.5 py-2 text-navy-700/70"><span class="text-lg" aria-hidden="true">✎</span>Check-in</a>
+      <a href="#sessions" data-tab="sessions" class="tab-btn flex flex-col items-center gap-0.5 py-2 text-navy-700/70"><span class="text-lg" aria-hidden="true">▤</span>Sessions</a>
+      <a href="#feedback" data-tab="feedback" class="tab-btn flex flex-col items-center gap-0.5 py-2 text-navy-700/70"><span class="text-lg" aria-hidden="true">✉</span>Feedback</a>
+      <a href="#help" data-tab="help" class="tab-btn flex flex-col items-center gap-0.5 py-2 text-navy-700/70"><span class="text-lg" aria-hidden="true">?</span>Help</a>
+      <a href="#account" data-tab="account" class="tab-btn flex flex-col items-center gap-0.5 py-2 text-navy-700/70"><span class="text-lg" aria-hidden="true">◉</span>Account</a>
+    </div>
+  </nav>
+</body>
+</html>

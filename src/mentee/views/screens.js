@@ -146,7 +146,7 @@ function progressCard() {
         <h3 class="font-medium">Graduation progress</h3>
         <span class="text-sm text-navy-700/60">${done}/${items.length}</span>
       </div>
-      <div class="w-full bg-navy-100 rounded-full h-2 my-3"><div class="bg-gold-500 h-2 rounded-full" style="width:${pct}%"></div></div>
+      <div class="w-full bg-navy-100 rounded-full h-2 my-3"><div class="bg-gold-500 h-2 rounded-full" style="width:${Number(pct) || 0}%"></div></div>
       <ul class="text-sm divide-y divide-navy-50">
         ${items.map(i => `<li class="flex justify-between gap-3 py-2"><span>${i.done ? '<span class="text-emerald-600">✓</span>' : '<span class="text-navy-700/40">○</span>'} ${esc(i.label)}</span>${i.detail ? `<span class="text-navy-700/60 text-right">${esc(i.detail)}</span>` : ''}</li>`).join('')}
       </ul>
@@ -225,7 +225,7 @@ function radio1to5(name, value) {
 }
 
 function numberField(name, label, value) {
-  return `<label class="block"><span class="block text-sm mb-1">${esc(label)}</span><input type="number" inputmode="numeric" min="0" name="${name}" value="${value ?? ''}" class="${INPUT}"></label>`;
+  return `<label class="block"><span class="block text-sm mb-1">${esc(label)}</span><input type="number" inputmode="numeric" min="0" name="${esc(name)}" value="${esc(value ?? '')}" class="${INPUT}"></label>`;
 }
 
 export function checkInScreen(editId) {

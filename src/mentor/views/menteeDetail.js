@@ -164,7 +164,7 @@ const HELP_STATUS_CLASS = {
   cancelled: 'bg-gray-100 text-gray-600',
 };
 
-function renderHelpRequests(menteeId, canManage) {
+function renderHelpRequests(menteeId, canManage, canEscalate) {
   const rows = state.helpRequests.filter(h => h.mentee_id === menteeId);
   if (!rows.length) return `<div class="card p-6 text-sm text-navy-700/50">No help requests.</div>`;
   return rows.map(h => {
@@ -186,6 +186,7 @@ function renderHelpRequests(menteeId, canManage) {
             <div class="flex gap-2">
               <button type="button" data-action="help-respond" data-id="${id}" data-status="acknowledged" class="text-xs px-3 py-1.5 rounded-lg border border-navy-200">Send / acknowledge</button>
               <button type="button" data-action="help-respond" data-id="${id}" data-status="resolved" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white">Resolve</button>
+              ${canEscalate && h.status !== 'escalated' ? `<button type="button" data-action="convert-help" data-id="${id}" class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-700">Convert to escalation</button>` : ''}
             </div>
           </div>` : ''}
       </div>
@@ -229,6 +230,7 @@ export function renderMenteeDetail(id) {
   if (!m) return renderDashboard();
 
   const canManage = isMyMentee(m.id) || isAdmin();
+  const mid = esc(m.id);
   setHeader(m.fullName, `Stage ${m.currentStage || '—'} · Started ${formatDate(m.programStartDate)}`);
 
   const checkIns = state.checkIns
@@ -249,10 +251,18 @@ export function renderMenteeDetail(id) {
             <div><span class="text-navy-700/50">Days in program</span><div>${daysInProgram(m.programStartDate)}</div></div>
             ${isAdmin() ? `<div><span class="text-navy-700/50">Mentor</span><div>${esc(mentorName(m.userId))}</div></div>` : ''}
           </div>
-          ${m.notes ? `<div class="mt-4 pt-4 border-t text-sm text-navy-700/80"><div class="mb-1">${MENTOR_ONLY_BADGE}</div>${esc(m.notes)}</div>` : ''}
+          ${m.notes ? `<div class="mt-4 pt-4 border-t text-sm text-navy-700/80 whitespace-pre-wrap"><div class="mb-1">${MENTOR_ONLY_BADGE}</div>${esc(m.notes)}</div>` : ''}
         </div>
-        ${isMyMentee(m.id) ? `<button type="button" data-action="nav" data-view="checkin" data-mentee-id="${esc(m.id)}" class="w-full btn-primary py-3 rounded-xl">New Check-In</button>` : ''}
-        <button type="button" data-action="export-summary" data-mentee-id="${esc(m.id)}" class="w-full py-2 rounded-xl border text-sm">Export Summary</button>
+        ${isMyMentee(m.id) ? `
+          <button type="button" data-action="nav" data-view="checkin" data-mentee-id="${mid}" class="w-full btn-primary py-3 rounded-xl">New Check-In</button>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" data-action="nav" data-view="feedback" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Feedback</button>
+            <button type="button" data-action="nav" data-view="kickoff" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Kickoff</button>
+            <button type="button" data-action="nav" data-view="escalation" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Escalate</button>
+            <button type="button" data-action="nav" data-view="graduation" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Recommend graduation</button>
+          </div>` : ''}
+        ${canManage ? `<button type="button" data-action="edit-mentee" data-mentee-id="${mid}" class="w-full py-2 rounded-xl border text-sm">Edit Mentee</button>` : ''}
+        <button type="button" data-action="export-summary" data-mentee-id="${mid}" class="w-full py-2 rounded-xl border text-sm">Export Summary</button>
         ${renderPortalCard(m, canManage)}
         <div class="card p-6">
           <h3 class="font-medium mb-3">Graduation Readiness</h3>
@@ -266,7 +276,7 @@ export function renderMenteeDetail(id) {
         </div>
         <div>
           <h3 class="section-title text-xl mb-4">Help Requests</h3>
-          <div class="space-y-4">${renderHelpRequests(m.id, canManage)}</div>
+          <div class="space-y-4">${renderHelpRequests(m.id, canManage, isMyMentee(m.id))}</div>
         </div>
         <div>
           <h3 class="section-title text-xl mb-4">Weekly Self Check-Ins</h3>

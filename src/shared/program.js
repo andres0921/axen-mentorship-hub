@@ -53,3 +53,29 @@ export function scoreThreshold() {
 export function stageCount() {
   return current.stageCount;
 }
+
+// Client twin of SQL public.get_my_graduation_progress() (migration 0004), so
+// mentor and mentee use ONE definition.
+//   latest: latest check-in { total_closed, light_speed_vt_progress, lofty_crm_usage } (or null)
+//   rec:    latest graduation recommendation { status, closed_transactions_confirmed,
+//           light_speed_vt_completed, lofty_crm_proficient, nexa_lending_connected } (or null)
+export function computeGraduationProgress(latest, rec, {
+  required = closedRequired(),
+  threshold = scoreThreshold(),
+} = {}) {
+  const ci = latest || {};
+  const r = rec || {};
+  const closed = Number(ci.total_closed) || 0;
+  const vt = Number(ci.light_speed_vt_progress) || 0;
+  const lofty = Number(ci.lofty_crm_usage) || 0;
+  return {
+    closed,
+    closed_required: required,
+    closed_done: closed >= required || r.closed_transactions_confirmed === true,
+    score_threshold: threshold,
+    vt_complete: r.light_speed_vt_completed === true || vt >= threshold,
+    lofty_proficient: r.lofty_crm_proficient === true || lofty >= threshold,
+    nexa_connected: r.nexa_lending_connected === true,
+    recommendation_status: rec ? (r.status || 'submitted') : 'not_started',
+  };
+}

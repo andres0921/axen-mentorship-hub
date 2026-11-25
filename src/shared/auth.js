@@ -1,5 +1,7 @@
 import { supabase } from './supabase.js';
-import { MENTEE_PORTAL_PATH, MENTOR_APP_PATH } from './config.js';
+import { homePathForRole, sanitizeNext } from './redirect.js';
+
+export { homePathForRole };
 
 // Role is read from public.profiles (RLS: own row), never from user metadata.
 export async function fetchRole(userId) {
@@ -12,18 +14,8 @@ export async function fetchRole(userId) {
   return { role: data ? data.role : 'pending', profile: data || null };
 }
 
-export function homePathForRole(role) {
-  if (role === 'mentee') return MENTEE_PORTAL_PATH;
-  if (role === 'mentor' || role === 'admin') return MENTOR_APP_PATH;
-  return null;
-}
-
-// Only same-origin absolute paths are allowed as post-login redirects.
-export function safeNext(next) {
-  if (typeof next !== 'string') return null;
-  if (!next.startsWith('/') || next.startsWith('//') || next.includes('\\')) return null;
-  return next;
-}
+// Only same-origin relative paths are allowed as post-login redirects.
+export const safeNext = sanitizeNext;
 
 export async function signOut() {
   const { error } = await supabase.auth.signOut();

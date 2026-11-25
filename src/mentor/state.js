@@ -14,6 +14,8 @@ export function emptyState() {
     currentView: 'dashboard',
     selectedMenteeId: null,
     prefillMenteeId: null,
+    // help request being converted into an escalation (escalation form only)
+    escalationHelpId: null,
     user: null,
     role: null,
     profile: null,
@@ -50,10 +52,11 @@ export function parseHash(hash) {
 }
 
 // Navigate to a view; updates the URL hash so back/forward and deep links work.
-export function navigate(view, { menteeId = null, prefill = null } = {}) {
+export function navigate(view, { menteeId = null, prefill = null, helpRequestId = null } = {}) {
   state.currentView = view;
   state.selectedMenteeId = view === 'mentee' ? menteeId : null;
   state.prefillMenteeId = prefill;
+  state.escalationHelpId = view === 'escalation' ? helpRequestId : null;
   const hash = hashFor(view, state.selectedMenteeId);
   if (typeof window !== 'undefined' && window.location.hash !== hash) {
     window.history.pushState(null, '', hash);

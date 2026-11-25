@@ -4,7 +4,7 @@
 import { supabase } from '../shared/supabase.js';
 import { throwIfError } from '../shared/format.js';
 import { loadProgramSettings } from '../shared/program.js';
-import { INVITE_FUNCTION } from '../shared/config.js';
+import { INVITE_FUNCTION, SUPABASE_URL, SUPABASE_ANON_KEY } from '../shared/config.js';
 import { state, render, isAdmin } from './state.js';
 
 export async function loadFromSupabase() {
@@ -106,8 +106,13 @@ export async function loadFromSupabase() {
 
 // Inserts when the mentee has no database id yet, otherwise updates.
 // On insert, the database-generated id is written back onto `mentee.id`.
-// Private notes live in mentee_private_notes and are written on create.
-export async function saveMentee(mentee) {
+// Private notes live in mentee_private_notes (saveMenteeNotes).
+export async function saveMentee(mentee, { previousStatus } = {}) {
+  // The DB trigger mentees_guard_graduation rejects non-admins setting
+  // 'graduated'; fail early with a clear message instead.
+  if (mentee.status === 'graduated' && !isAdmin() && previousStatus !== 'graduated') {
+    throw new Error('Only the program admin can mark a mentee graduated. Submit a graduation recommendation instead.');
+  }
   const payload = {
     full_name: mentee.fullName,
     email: mentee.email,
@@ -118,15 +123,15 @@ export async function saveMentee(mentee) {
   };
   if (mentee.id) {
     payload.updated_at = new Date().toISOString();
-    const { error } = await supabase.from('mentees').update(payload).eq('id', mentee.id);
+    const { data, error } = await supabase.from('mentees').update(payload).eq('id', mentee.id).select('id');
     throwIfError(error, 'Could not update mentee');
+    if (!data || !data.length) throw new Error('Could not update mentee: you do not have permission to edit this mentee.');
   } else {
     payload.user_id = state.user.id;
     const { data, error } = await supabase.from('mentees').insert(payload).select().single();
     throwIfError(error, 'Could not create mentee');
     if (!data || !data.id) throw new Error('Could not create mentee: no id was returned');
     mentee.id = data.id;
-    if (mentee.notes) await saveMenteeNotes(mentee.id, mentee.notes);
   }
   return mentee;
 }
@@ -163,14 +168,14 @@ export async function saveCheckIn(checkIn) {
   };
   const { data, error } = await supabase.from('check_ins').insert(payload).select('id').single();
   throwIfError(error, 'Could not save check-in');
-  const { error: privErr } = await supabase.from('check_in_private').insert({
+  const { error: privErr } = await supabase.from('check_in_private').upsert({
     check_in_id: data.id,
     mentee_id: checkIn.menteeId,
     general_assessment_notes: checkIn.generalAssessmentNotes,
     verification_notes: checkIn.verificationNotes,
     escalation_flag: !!checkIn.escalationFlag,
     escalation_notes: checkIn.escalationNotes,
-  });
+  }, { onConflict: 'check_in_id' });
   if (privErr) {
     // Best-effort rollback so we don't keep a check-in without its private half.
     await supabase.from('check_ins').delete().eq('id', data.id);
@@ -193,12 +198,12 @@ export async function saveFeedback(fb) {
   const { data, error } = await supabase.from('mentor_feedback').insert(payload).select('id').single();
   throwIfError(error, 'Could not save feedback');
   if (fb.privateNotes || fb.overallRating) {
-    const { error: privErr } = await supabase.from('mentor_feedback_private').insert({
+    const { error: privErr } = await supabase.from('mentor_feedback_private').upsert({
       feedback_id: data.id,
       mentee_id: fb.menteeId,
       private_notes: fb.privateNotes,
       overall_rating: fb.overallRating,
-    });
+    }, { onConflict: 'feedback_id' });
     if (privErr) {
       await supabase.from('mentor_feedback').delete().eq('id', data.id);
       throwIfError(privErr, 'Could not save private feedback notes');
@@ -236,8 +241,9 @@ export async function saveEscalation(escalation) {
     additional_context: escalation.additionalContext,
     status: 'submitted',
   };
-  const { error } = await supabase.from('escalations').insert(payload);
+  const { data, error } = await supabase.from('escalations').insert(payload).select('id').single();
   throwIfError(error, 'Could not save escalation');
+  return data ? data.id : null;
 }
 
 // Status is set by the database ('submitted'); only the admin can approve.
@@ -298,18 +304,48 @@ export async function respondToHelpRequest(id, { status, response }) {
   throwIfError(error, 'Could not update help request');
 }
 
+// Help request converted into an escalation: link it and mark it escalated.
+export async function linkHelpRequestToEscalation(helpRequestId, escalationId) {
+  const { error } = await supabase
+    .from('help_requests')
+    .update({ status: 'escalated', escalation_id: escalationId })
+    .eq('id', helpRequestId);
+  throwIfError(error, 'Escalation saved, but the help request could not be linked to it');
+}
+
 // --- portal access (Edge Function) -------------------------------------------
+// POST ${SUPABASE_URL}/functions/v1/invite-mentee {action, menteeId}.
+// Errors come back as JSON {error, message}.
 export async function portalAccess(action, menteeId) {
-  const { data, error } = await supabase.functions.invoke(INVITE_FUNCTION, { body: { action, menteeId } });
-  if (error) {
-    let message = error.message;
-    try {
-      const body = error.context && typeof error.context.json === 'function' ? await error.context.json() : null;
-      if (body && body.message) message = body.message;
-    } catch { /* keep generic message */ }
+  if (!['invite', 'resend', 'revoke'].includes(action)) throw new Error('Unknown portal action.');
+  const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+  throwIfError(sessionErr, 'Could not read your session');
+  const token = sessionData && sessionData.session && sessionData.session.access_token;
+  if (!token) throw new Error('Your session has expired. Please sign in again.');
+
+  let res;
+  try {
+    res = await fetch(`${SUPABASE_URL}/functions/v1/${INVITE_FUNCTION}`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: SUPABASE_ANON_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ action, menteeId }),
+    });
+  } catch (err) {
+    throw new Error(`Could not reach the invite service: ${err && err.message ? err.message : err}`);
+  }
+  let body = null;
+  try {
+    body = await res.json();
+  } catch { /* non-JSON response */ }
+  if (!res.ok) {
+    const message = (body && (body.message || body.error)) || `Invite service error (HTTP ${res.status})`;
     throw new Error(message);
   }
-  return data;
+  return body;
 }
 
 // --- admin -------------------------------------------------------------------

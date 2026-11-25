@@ -12,17 +12,33 @@ export function renderDashboard() {
   const escalated = mine.filter(m => m.status === 'escalated').length;
   const graduated = mine.filter(m => m.status === 'graduated').length;
 
-  const openHelp = state.helpRequests.filter(h => h.status === 'open' && mine.some(m => m.id === h.mentee_id)).length;
-  const toReview = state.selfCheckIns.filter(s => !s.reviewed_at && mine.some(m => m.id === s.mentee_id)).length;
+  const mineIds = new Set(mine.map(m => m.id));
+  const nameOf = id => (state.mentees.find(m => m.id === id) || {}).fullName || 'Unknown mentee';
+  const openHelpRows = state.helpRequests
+    .filter(h => h.status === 'open' && mineIds.has(h.mentee_id))
+    .sort((a, b) => (a.urgency === 'urgent' ? 0 : 1) - (b.urgency === 'urgent' ? 0 : 1)
+      || new Date(a.created_at) - new Date(b.created_at));
+  const toReviewRows = state.selfCheckIns.filter(s => !s.reviewed_at && mineIds.has(s.mentee_id));
+  const openHelp = openHelpRows.length;
+  const toReview = toReviewRows.length;
   const pendingGrads = isAdmin() ? state.graduations.filter(g => g.status === 'submitted').length : 0;
 
   let html = '';
   if (openHelp || toReview || pendingGrads) {
-    html += `<div class="card p-4 mb-6 flex flex-wrap gap-4 items-center text-sm">
-      <span class="font-medium">Needs attention:</span>
-      ${openHelp ? `<span class="px-2.5 py-1 rounded-full bg-red-100 text-red-800">${openHelp} open help request${openHelp === 1 ? '' : 's'}</span>` : ''}
-      ${toReview ? `<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">${toReview} self check-in${toReview === 1 ? '' : 's'} to review</span>` : ''}
-      ${pendingGrads ? `<button type="button" data-action="nav" data-view="admin-graduations" class="px-2.5 py-1 rounded-full bg-gold-100 text-gold-800 underline">${pendingGrads} graduation${pendingGrads === 1 ? '' : 's'} awaiting approval</button>` : ''}
+    const item = (menteeId, label, cls) => `
+      <button type="button" data-action="open-mentee" data-mentee-id="${esc(menteeId)}" class="w-full text-left flex items-center justify-between gap-3 py-2 border-b border-navy-50 hover:bg-navy-50 px-2 rounded">
+        <span class="font-medium">${esc(nameOf(menteeId))}</span>
+        <span class="text-xs px-2 py-0.5 rounded-full ${cls}">${esc(label)}</span>
+      </button>`;
+    html += `<div class="card p-4 mb-6 text-sm">
+      <div class="flex flex-wrap gap-3 items-center mb-2">
+        <span class="font-medium">Needs attention:</span>
+        ${openHelp ? `<span class="px-2.5 py-1 rounded-full bg-red-100 text-red-800">${openHelp} open help request${openHelp === 1 ? '' : 's'}</span>` : ''}
+        ${toReview ? `<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">${toReview} self check-in${toReview === 1 ? '' : 's'} to review</span>` : ''}
+        ${pendingGrads ? `<button type="button" data-action="nav" data-view="admin-graduations" class="px-2.5 py-1 rounded-full bg-gold-100 text-gold-800 underline">${pendingGrads} graduation${pendingGrads === 1 ? '' : 's'} awaiting approval</button>` : ''}
+      </div>
+      ${openHelpRows.map(h => item(h.mentee_id, h.urgency === 'urgent' ? 'Urgent help request' : 'Help request', h.urgency === 'urgent' ? 'bg-red-600 text-white' : 'bg-red-100 text-red-800')).join('')}
+      ${toReviewRows.map(r => item(r.mentee_id, `Self check-in · week of ${formatDate(r.week_of)}`, 'bg-amber-100 text-amber-800')).join('')}
     </div>`;
   }
 
@@ -52,6 +68,7 @@ export function renderDashboard() {
         <option value="escalated">Escalated</option>
         <option value="graduated">Graduated</option>
         <option value="paused">Paused</option>
+        <option value="dropped">Dropped</option>
       </select>
     </div>
     <div id="mentee-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

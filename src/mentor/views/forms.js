@@ -1,10 +1,11 @@
 import { esc } from '../../shared/esc.js';
-import { today, runSubmit } from '../../shared/format.js';
-import { closedRequired } from '../../shared/program.js';
-import { state, navigate, myMentees } from '../state.js';
+import { today, runSubmit, reportError } from '../../shared/format.js';
+import { closedRequired, stageCount } from '../../shared/program.js';
+import { state, navigate, myMentees, isAdmin, isMyMentee } from '../state.js';
 import { dom, setHeader, menteeOptionsHtml, scoreRow, MENTOR_ONLY_BADGE } from './common.js';
 import {
-  loadFromSupabase, saveMentee, saveCheckIn, saveFeedback, saveKickoff, saveEscalation, saveGraduation, updateMyProfile,
+  loadFromSupabase, saveMentee, saveMenteeNotes, saveCheckIn, saveFeedback, saveKickoff, saveEscalation, saveGraduation,
+  updateMyProfile, linkHelpRequestToEscalation,
 } from '../data.js';
 
 const INPUT = 'w-full border border-navy-200 rounded-lg px-3 py-2';
@@ -183,11 +184,18 @@ export function renderCheckInForm() {
     };
     await runSubmit(form, async () => {
       await saveCheckIn(checkIn);
+      // The check-in is saved; a failed status update must not invite a duplicate resubmit.
+      let statusErr = null;
       if (checkIn.escalationFlag && mentee && mentee.status !== 'escalated') {
-        await saveMentee({ ...mentee, status: 'escalated' });
+        try {
+          await saveMentee({ ...mentee, status: 'escalated' }, { previousStatus: mentee.status });
+        } catch (err) {
+          statusErr = err;
+        }
       }
       await loadFromSupabase();
       navigate('mentee', { menteeId: checkIn.menteeId });
+      if (statusErr) reportError(statusErr);
     });
   };
 }
@@ -229,10 +237,17 @@ export function prefillFromSelfCheckIn(id) {
 // ---------------------------------------------------------------------------
 export function renderEscalationForm() {
   setHeader('Escalation Document', 'Submit to National Director');
-  const menteeOptions = menteeOptionsHtml(state.prefillMenteeId);
+  const fromHelp = state.escalationHelpId
+    ? state.helpRequests.find(h => h.id === state.escalationHelpId) || null
+    : null;
+  const menteeOptions = menteeOptionsHtml(fromHelp ? fromHelp.mentee_id : state.prefillMenteeId);
+  const helpType = fromHelp && fromHelp.category === 'compliance_legal' ? 'compliance_legal'
+    : fromHelp && fromHelp.category === 'personal' ? 'mental_health' : null;
+  const typeOpt = (value, label) => `<option value="${value}" ${helpType === value ? 'selected' : ''}>${label}</option>`;
   dom.app.innerHTML = `
     ${noMenteesNotice()}
     <form id="escalation-form" class="max-w-3xl space-y-6">
+      ${fromHelp ? `<div class="card p-4 text-sm bg-amber-50">Converting a help request from the mentee. Once submitted, the help request is marked “escalated” and linked to this escalation.</div>` : ''}
       <div class="card p-6 space-y-4">
         <h3 class="font-medium">Parties Involved</h3>
         <div>
@@ -251,17 +266,17 @@ export function renderEscalationForm() {
       <div class="card p-6 space-y-4">
         <h3 class="font-medium">Escalation Type</h3>
         <select name="escalationType" required class="${INPUT}">
-          <option value="disengaged">Disengaged Student</option>
-          <option value="compliance_legal">Compliance / Legal Question</option>
-          <option value="mental_health">Mental Health or Personal Crisis</option>
-          <option value="financial_crisis">Financial Crisis</option>
-          <option value="family_emergency">Family Emergency</option>
-          <option value="other">Other</option>
+          ${typeOpt('disengaged', 'Disengaged Student')}
+          ${typeOpt('compliance_legal', 'Compliance / Legal Question')}
+          ${typeOpt('mental_health', 'Mental Health or Personal Crisis')}
+          ${typeOpt('financial_crisis', 'Financial Crisis')}
+          ${typeOpt('family_emergency', 'Family Emergency')}
+          ${typeOpt('other', 'Other')}
         </select>
       </div>
       <div class="card p-6 space-y-4">
         <h3 class="font-medium">Situation Summary</h3>
-        <textarea name="situationSummary" rows="4" required placeholder="What happened? When did it start? Check-ins affected?" class="${INPUT}"></textarea>
+        <textarea name="situationSummary" rows="4" required placeholder="What happened? When did it start? Check-ins affected?" class="${INPUT}">${fromHelp ? esc(`Mentee help request (${fromHelp.created_at ? fromHelp.created_at.slice(0, 10) : ''}):\n${fromHelp.message || ''}`) : ''}</textarea>
       </div>
       <div class="card p-6 space-y-4">
         <h3 class="font-medium">Actions Already Taken</h3>
@@ -302,12 +317,18 @@ export function renderEscalationForm() {
       recommendedNextStep: data.recommendedNextStep,
       additionalContext: data.additionalContext || null,
     };
+    const helpId = fromHelp && fromHelp.mentee_id === escalation.menteeId ? fromHelp.id : null;
     await runSubmit(form, async () => {
-      await saveEscalation(escalation);
+      const escalationId = await saveEscalation(escalation);
+      // The escalation is saved; follow-up failures must not invite a duplicate resubmit.
+      const followUps = [];
+      if (helpId && escalationId) followUps.push(linkHelpRequestToEscalation(helpId, escalationId));
       const m = state.mentees.find(x => x.id === escalation.menteeId);
-      if (m) await saveMentee({ ...m, status: 'escalated' });
+      if (m && m.status !== 'escalated') followUps.push(saveMentee({ ...m, status: 'escalated' }, { previousStatus: m.status }));
+      const results = await Promise.allSettled(followUps);
       await loadFromSupabase();
-      navigate('dashboard');
+      navigate('mentee', { menteeId: escalation.menteeId });
+      results.filter(r => r.status === 'rejected').forEach(r => reportError(r.reason));
     });
   };
 }
@@ -594,12 +615,7 @@ export function openAddMenteeModal() {
       <input name="phone" placeholder="Phone" class="${INPUT}">
       <div class="grid grid-cols-2 gap-3">
         <input name="programStartDate" type="date" value="${today()}" class="border border-navy-200 rounded-lg px-3 py-2">
-        <select name="currentStage" class="border border-navy-200 rounded-lg px-3 py-2">
-          <option value="1">Stage 1</option>
-          <option value="2">Stage 2</option>
-          <option value="3">Stage 3</option>
-          <option value="4">Stage 4</option>
-        </select>
+        <select name="currentStage" class="border border-navy-200 rounded-lg px-3 py-2">${stageOptionsHtml(1)}</select>
       </div>
       <textarea name="notes" placeholder="Private notes (mentor only)" rows="2" class="${INPUT}"></textarea>
       <div class="flex gap-2 pt-2">
@@ -624,9 +640,98 @@ export function openAddMenteeModal() {
     };
     await runSubmit(form, async () => {
       await saveMentee(mentee);
-      await loadFromSupabase();
+      // The mentee row exists now; a notes failure must not lead to a duplicate create.
+      let notesErr = null;
+      if (mentee.notes) {
+        try {
+          await saveMenteeNotes(mentee.id, mentee.notes);
+        } catch (err) {
+          notesErr = err;
+        }
+      }
       modal.innerHTML = '';
+      await loadFromSupabase();
       navigate('mentee', { menteeId: mentee.id });
+      if (notesErr) reportError(notesErr);
+    });
+  };
+}
+
+function stageOptionsHtml(selected) {
+  const n = Math.max(Number(stageCount()) || 4, Number(selected) || 0);
+  return Array.from({ length: n }, (_, i) => i + 1)
+    .map(v => `<option value="${v}" ${Number(selected) === v ? 'selected' : ''}>Stage ${v}</option>`).join('');
+}
+
+const STATUS_OPTIONS = [
+  ['active', 'Active'],
+  ['paused', 'Paused'],
+  ['escalated', 'Escalated'],
+  ['dropped', 'Dropped'],
+  ['graduated', 'Graduated'],
+];
+
+// Edit an existing mentee. Only the admin may pick 'graduated' (the DB trigger
+// mentees_guard_graduation enforces it); mentors graduate via the recommendation.
+// Private notes (mentee_private_notes) can only be written by the mentee's mentor.
+export function openEditMenteeModal(id) {
+  const m = state.mentees.find(x => x.id === id);
+  if (!m) return;
+  const canNotes = isMyMentee(m.id);
+  const statusOpts = STATUS_OPTIONS
+    .filter(([v]) => v !== 'graduated' || isAdmin() || m.status === 'graduated')
+    .map(([v, label]) => `<option value="${v}" ${m.status === v ? 'selected' : ''}>${label}</option>`)
+    .join('');
+  const modal = document.getElementById('modal-root');
+  modal.innerHTML = modalShell(`
+    <h3 class="font-display text-xl mb-4">Edit Mentee</h3>
+    <form id="edit-mentee-form" class="space-y-3">
+      <input name="fullName" placeholder="Full name" required value="${esc(m.fullName)}" class="${INPUT}">
+      <input name="email" type="email" placeholder="Email (needed for the portal invite)" value="${esc(m.email || '')}" class="${INPUT}">
+      <input name="phone" placeholder="Phone" value="${esc(m.phone || '')}" class="${INPUT}">
+      <div class="grid grid-cols-2 gap-3">
+        <input name="programStartDate" type="date" value="${esc(m.programStartDate || '')}" class="border border-navy-200 rounded-lg px-3 py-2">
+        <select name="currentStage" class="border border-navy-200 rounded-lg px-3 py-2">${stageOptionsHtml(m.currentStage || 1)}</select>
+      </div>
+      <div>
+        <label class="block text-sm mb-1">Status</label>
+        <select name="status" class="${INPUT}">${statusOpts}</select>
+        ${isAdmin() ? '' : '<div class="text-xs text-navy-700/60 mt-1">To graduate a mentee, submit a graduation recommendation; the program admin approves it.</div>'}
+      </div>
+      ${m.portalAccess !== 'none' ? '<div class="text-xs text-amber-800">Changing the email does not change the mentee’s portal login.</div>' : ''}
+      ${canNotes ? `
+        <div>
+          <div class="mb-1">${MENTOR_ONLY_BADGE}</div>
+          <textarea name="notes" placeholder="Private notes (mentor only)" rows="3" class="${INPUT}">${esc(m.notes || '')}</textarea>
+        </div>` : ''}
+      <div class="flex gap-2 pt-2">
+        <button type="submit" class="btn-primary px-6 py-2 rounded-lg">Save</button>
+        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border">Cancel</button>
+      </div>
+    </form>
+  `);
+  document.getElementById('edit-mentee-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const data = Object.fromEntries(new FormData(form).entries());
+    const updated = {
+      ...m,
+      fullName: data.fullName.trim(),
+      email: data.email ? data.email.trim() : null,
+      phone: data.phone ? data.phone.trim() : null,
+      programStartDate: data.programStartDate || null,
+      currentStage: Number(data.currentStage) || m.currentStage || 1,
+      status: data.status || m.status,
+    };
+    await runSubmit(form, async () => {
+      if (!updated.fullName) throw new Error('Full name is required.');
+      await saveMentee(updated, { previousStatus: m.status });
+      if (canNotes) {
+        const notes = (data.notes || '').trim();
+        if (notes !== (m.notes || '').trim()) await saveMenteeNotes(m.id, notes || null);
+      }
+      modal.innerHTML = '';
+      await loadFromSupabase();
     });
   };
 }
