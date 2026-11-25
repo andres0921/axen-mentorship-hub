@@ -1,0 +1,26 @@
+{
+  "name": "axen-mentorship-hub",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run && node tests/dist-smoke.mjs",
+    "test:unit": "vitest run",
+    "test:dist": "node tests/dist-smoke.mjs",
+    "test:rls": "bash scripts/test-rls.sh"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "2.119.2"
+  },
+  "devDependencies": {
+    "autoprefixer": "10.7.0",
+    "jsdom": "31.0.1",
+    "postcss": "8.5.33",
+    "tailwindcss": "3.4.19",
+    "vite": "8.3.8",
+    "vitest": "5.1.1"
+  }
+}

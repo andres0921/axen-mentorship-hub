@@ -1,0 +1,7 @@
+# Supabase CLI config (only the parts this repo needs).
+# The remote project is agent-mentorship-hub (ref delfnadofjhlasxafvri).
+project_id = "axen-mentorship-hub"
+
+[functions.invite-mentee]
+# Reject requests without a valid user JWT before the function runs.
+verify_jwt = true

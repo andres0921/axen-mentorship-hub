@@ -4,46 +4,34 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AXEN Mentorship Hub</title>
-  <link rel="icon" href="assets/axen-logo-white.png">
+  <link rel="icon" href="/assets/axen-logo-white.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            display: ['Playfair Display', 'serif'],
-          },
-          colors: {
-            navy: { 50:'#f4f6fb', 100:'#e8edf7', 200:'#cfd8ea', 300:'#a9b7d3', 400:'#7a8db5', 500:'#526894', 600:'#3a4e78', 700:'#1e2a4a', 800:'#152038', 900:'#0c1424' },
-            gold: { 50:'#fdf9ec', 100:'#f8efcc', 200:'#f0de97', 300:'#e6c860', 400:'#d4af37', 500:'#c9a227', 600:'#b8860b', 700:'#94690d', 800:'#7a5512', 900:'#664614' },
-          }
-        }
-      }
-    }
-  </script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="/src/mentor/main.js"></script>
 </head>
 <body class="bg-navy-50 text-navy-900 font-sans antialiased">
-  <!-- Auth overlay -->
-  <div id="auth-overlay" class="fixed inset-0 bg-navy-900/80 backdrop-blur-sm z-50 flex items-center justify-center">
+  <!-- Auth overlay (no public sign-up: accounts are invited) -->
+  <div id="auth-overlay" class="fixed inset-0 bg-navy-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
       <div class="text-center mb-6">
-        <img src="assets/axen-logo-white.png" alt="AXEN Realty" class="h-10 mx-auto mb-3">
+        <img src="/assets/axen-logo-white.png" alt="AXEN Realty" class="h-10 mx-auto mb-3">
         <h2 class="font-display text-2xl">AXEN Mentorship Hub</h2>
-        <p class="text-sm text-navy-700/70 mt-1">Sign in to access your mentees</p>
+        <p class="text-sm text-navy-700/70 mt-1">Mentor sign-in</p>
       </div>
       <form id="auth-form" class="space-y-4">
-        <input type="email" id="auth-email" placeholder="Email" required class="w-full border border-navy-200 rounded-lg px-4 py-3">
-        <input type="password" id="auth-password" placeholder="Password" required class="w-full border border-navy-200 rounded-lg px-4 py-3">
+        <input type="email" id="auth-email" placeholder="Email" required autocomplete="email" class="w-full border border-navy-200 rounded-lg px-4 py-3">
+        <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password" class="w-full border border-navy-200 rounded-lg px-4 py-3">
         <button type="submit" id="auth-submit" class="w-full btn-primary py-3 rounded-xl">Sign In</button>
       </form>
-      <button id="auth-toggle" class="w-full text-sm text-navy-700/60 mt-4 hover:text-navy-900">Need an account? Sign up</button>
+      <button type="button" id="auth-magic" class="w-full text-sm text-navy-700/70 mt-4 hover:text-navy-900 underline">Email me a sign-in link instead</button>
+      <div id="auth-pending" class="hidden text-center space-y-3">
+        <p class="font-medium">Your account isn’t set up yet.</p>
+        <p class="text-sm text-navy-700/70">You’re signed in as <span id="auth-pending-email" class="font-medium"></span>, but this account has no access. Contact your mentor or the program admin.</p>
+        <button type="button" id="auth-pending-signout" class="text-sm px-4 py-2 rounded-lg border border-navy-200">Sign out</button>
+      </div>
       <p id="auth-message" class="text-sm text-center mt-4 text-red-600 hidden"></p>
+      <p class="text-xs text-center mt-6 text-navy-700/50">Mentee? Sign in at <a href="/mentee/" class="underline">the mentee portal</a>.</p>
     </div>
   </div>
 
@@ -51,14 +39,14 @@
   <aside class="fixed inset-y-0 left-0 w-64 bg-navy-900 text-white flex flex-col z-20">
     <div class="p-6 border-b border-white/10">
       <div class="flex items-center gap-3">
-        <img src="assets/axen-logo-white.png" alt="AXEN Realty" class="h-8">
+        <img src="/assets/axen-logo-white.png" alt="AXEN Realty" class="h-8">
         <div>
           <div class="font-display text-xl tracking-tight">AXEN</div>
           <div class="text-xs text-white/60">Mentorship Hub</div>
         </div>
       </div>
     </div>
-    <nav class="flex-1 p-4 space-y-1">
+    <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
       <button data-view="dashboard" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
         <span class="text-lg">▣</span> Dashboard
       </button>
@@ -83,6 +71,15 @@
       <button data-view="commitments" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
         <span class="text-lg">📌</span> Commitments
       </button>
+      <div data-admin-only class="hidden pt-4 mt-4 border-t border-white/10 space-y-1">
+        <div class="px-4 text-xs uppercase tracking-wide text-white/40">Admin</div>
+        <button data-view="admin-mentees" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+          <span class="text-lg">☷</span> All Mentees
+        </button>
+        <button data-view="admin-graduations" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
+          <span class="text-lg">🎓</span> Graduations <span id="grad-badge" class="hidden ml-auto text-xs px-2 py-0.5 rounded-full bg-gold-500 text-navy-900"></span>
+        </button>
+      </div>
     </nav>
     <div class="p-4 border-t border-white/10 text-xs text-white/40">
       AXEN Xcelerate University<br>Mentor Toolkit
@@ -91,7 +88,6 @@
 
   <!-- Main -->
   <main class="ml-64 min-h-screen">
-    <!-- Top bar -->
     <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-navy-100 px-8 py-4 flex items-center justify-between">
       <div>
         <h1 id="page-title" class="font-display text-2xl text-navy-900">Dashboard</h1>
@@ -100,6 +96,7 @@
       <div class="flex items-center gap-4">
         <button id="export-btn" class="text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition">Export Data</button>
         <button id="add-mentee-btn" class="text-sm px-4 py-2 rounded-lg bg-gold-500 hover:bg-gold-600 text-navy-900 font-medium transition">+ Add Mentee</button>
+        <button id="profile-btn" class="text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition">Profile</button>
         <button id="signout-btn" class="hidden text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition">Sign out</button>
       </div>
     </header>
@@ -107,9 +104,6 @@
     <div id="app" class="p-8 max-w-7xl mx-auto"></div>
   </main>
 
-  <!-- Modal container -->
   <div id="modal-root"></div>
-
-  <script src="js/app.js"></script>
 </body>
 </html>
