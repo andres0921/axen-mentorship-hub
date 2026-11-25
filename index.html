@@ -2,33 +2,40 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0c1424">
   <title>AXEN Mentorship Hub</title>
   <link rel="icon" href="/assets/axen-logo-white.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="AXEN Mentorship">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
   <script type="module" src="/src/mentor/main.js"></script>
 </head>
-<body class="bg-navy-50 text-navy-900 font-sans antialiased">
+<body class="mentor-app bg-navy-50 text-navy-900 font-sans antialiased" data-view="dashboard">
   <!-- Auth overlay (no public sign-up: accounts are invited) -->
-  <div id="auth-overlay" class="fixed inset-0 bg-navy-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl p-8 w-full max-w-md shadow-2xl">
+  <div id="auth-overlay" class="auth-overlay fixed inset-0 bg-navy-900/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl p-6 sm:p-8 w-full max-w-md shadow-2xl max-h-full overflow-y-auto">
       <div class="text-center mb-6">
         <img src="/assets/axen-logo-white.png" alt="AXEN Realty" class="h-10 mx-auto mb-3">
         <h2 class="font-display text-2xl">AXEN Mentorship Hub</h2>
         <p class="text-sm text-navy-700/70 mt-1">Mentor sign-in</p>
       </div>
       <form id="auth-form" class="space-y-4">
-        <input type="email" id="auth-email" placeholder="Email" required autocomplete="email" class="w-full border border-navy-200 rounded-lg px-4 py-3">
-        <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password" class="w-full border border-navy-200 rounded-lg px-4 py-3">
-        <button type="submit" id="auth-submit" class="w-full btn-primary py-3 rounded-xl">Sign In</button>
+        <input type="email" id="auth-email" placeholder="Email" required autocomplete="email" class="w-full border border-navy-200 rounded-lg px-4 py-3 text-base min-h-[44px]">
+        <input type="password" id="auth-password" placeholder="Password" required autocomplete="current-password" class="w-full border border-navy-200 rounded-lg px-4 py-3 text-base min-h-[44px]">
+        <button type="submit" id="auth-submit" class="w-full btn-primary py-3 rounded-xl min-h-[44px]">Sign In</button>
       </form>
-      <button type="button" id="auth-magic" class="w-full text-sm text-navy-700/70 mt-4 hover:text-navy-900 underline">Email me a sign-in link instead</button>
+      <button type="button" id="auth-magic" class="w-full text-sm text-navy-700/70 mt-4 hover:text-navy-900 underline max-md:min-h-[44px]">Email me a sign-in link instead</button>
       <div id="auth-pending" class="hidden text-center space-y-3">
         <p class="font-medium">Your account isn’t set up yet.</p>
         <p class="text-sm text-navy-700/70">You’re signed in as <span id="auth-pending-email" class="font-medium"></span>, but this account has no access. Contact your mentor or the program admin.</p>
-        <button type="button" id="auth-pending-signout" class="text-sm px-4 py-2 rounded-lg border border-navy-200">Sign out</button>
+        <button type="button" id="auth-pending-signout" class="text-sm px-4 py-2 rounded-lg border border-navy-200 max-md:min-h-[44px]">Sign out</button>
       </div>
       <p id="auth-message" class="text-sm text-center mt-4 text-red-600 hidden"></p>
       <p class="text-xs text-center mt-6 text-navy-700/50">Mentee? Sign in at <a href="/mentee/" class="underline">the mentee portal</a>.</p>
@@ -36,8 +43,10 @@
   </div>
 
   <!-- Sidebar -->
-  <aside class="fixed inset-y-0 left-0 w-64 bg-navy-900 text-white flex flex-col z-20">
-    <div class="p-6 border-b border-white/10">
+  <!-- Below md the sidebar is an off-canvas drawer (see .drawer in styles.css). -->
+  <div id="nav-backdrop" class="nav-backdrop md:hidden fixed inset-0 z-[15] bg-navy-900/50" aria-hidden="true"></div>
+  <aside id="sidebar" class="drawer fixed inset-y-0 left-0 w-64 max-w-[85vw] bg-navy-900 text-white flex flex-col z-20" aria-label="Sidebar">
+    <div class="p-6 border-b border-white/10 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3">
         <img src="/assets/axen-logo-white.png" alt="AXEN Realty" class="h-8">
         <div>
@@ -45,8 +54,11 @@
           <div class="text-xs text-white/60">Mentorship Hub</div>
         </div>
       </div>
+      <button type="button" id="nav-close" class="md:hidden -mr-2 inline-flex items-center justify-center h-11 w-11 rounded-lg text-white/80 hover:bg-white/10 hover:text-white" aria-label="Close menu">
+        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
-    <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
+    <nav aria-label="Main" class="flex-1 p-4 space-y-1 overflow-y-auto">
       <button data-view="dashboard" class="nav-btn w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 text-white/80 hover:bg-white/10 hover:text-white transition">
         <span class="text-lg">▣</span> Dashboard
       </button>
@@ -87,22 +99,57 @@
   </aside>
 
   <!-- Main -->
-  <main class="ml-64 min-h-screen">
-    <header class="sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-navy-100 px-8 py-4 flex items-center justify-between">
-      <div>
-        <h1 id="page-title" class="font-display text-2xl text-navy-900">Dashboard</h1>
-        <p id="page-subtitle" class="text-sm text-navy-700/70">Overview of your mentees</p>
+  <main class="md:ml-64 min-h-screen">
+    <header id="app-header" class="app-header sticky top-0 z-10 bg-white/80 backdrop-blur border-b border-navy-100 px-4 py-3 md:px-8 md:py-4 flex items-center justify-between gap-2 md:gap-4">
+      <button type="button" id="nav-toggle" class="md:hidden -ml-2 shrink-0 inline-flex items-center justify-center h-11 w-11 rounded-lg text-navy-900 hover:bg-navy-50" aria-label="Open menu" aria-expanded="false" aria-controls="sidebar">
+        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <div class="min-w-0 flex-1">
+        <h1 id="page-title" class="font-display text-xl md:text-2xl text-navy-900 max-md:truncate">Dashboard</h1>
+        <p id="page-subtitle" class="text-sm text-navy-700/70 max-md:text-xs max-md:truncate">Overview of your mentees</p>
       </div>
-      <div class="flex items-center gap-4">
-        <button id="export-btn" class="text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition">Export Data</button>
-        <button id="add-mentee-btn" class="text-sm px-4 py-2 rounded-lg bg-gold-500 hover:bg-gold-600 text-navy-900 font-medium transition">+ Add Mentee</button>
-        <button id="profile-btn" class="text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition">Profile</button>
-        <button id="signout-btn" class="hidden text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition">Sign out</button>
+      <!-- md+: one row in the original order (Export, + Add Mentee, Profile, Sign out).
+           Below md: "+" stays visible; Export / Profile / Sign out move into the "…" menu. -->
+      <div class="relative shrink-0 flex items-center gap-2 md:gap-4">
+        <button id="add-mentee-btn" class="text-sm px-4 py-2 rounded-lg bg-gold-500 hover:bg-gold-600 text-navy-900 font-medium transition md:order-2 max-md:inline-flex max-md:items-center max-md:justify-center max-md:h-11 max-md:w-11 max-md:px-0 max-md:text-2xl max-md:leading-none"><span aria-hidden="true">+</span><span class="max-md:sr-only"> Add Mentee</span></button>
+        <button type="button" id="header-menu-btn" class="md:hidden inline-flex items-center justify-center h-11 w-11 rounded-lg border border-navy-200 hover:bg-navy-50 transition" aria-label="More actions" aria-haspopup="true" aria-expanded="false" aria-controls="header-menu">
+          <svg viewBox="0 0 24 24" class="h-5 w-5" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </button>
+        <div id="header-menu" class="header-menu md:contents">
+          <button id="export-btn" class="text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition md:order-1 max-md:w-full max-md:text-left max-md:text-base max-md:min-h-[44px] max-md:border-transparent">Export Data</button>
+          <button id="profile-btn" class="text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition md:order-3 max-md:w-full max-md:text-left max-md:text-base max-md:min-h-[44px] max-md:border-transparent">Profile</button>
+          <button id="signout-btn" class="hidden text-sm px-4 py-2 rounded-lg border border-navy-200 hover:bg-navy-50 transition md:order-4 max-md:w-full max-md:text-left max-md:text-base max-md:min-h-[44px] max-md:border-transparent">Sign out</button>
+        </div>
       </div>
     </header>
 
-    <div id="app" class="p-8 max-w-7xl mx-auto"></div>
+    <div id="app" class="p-4 md:p-8 max-w-7xl mx-auto"></div>
   </main>
+
+  <!-- Phones only (below md, after sign-in): thumb-zone add button on Dashboard /
+       Mentees, and the bottom tab bar. Both are display:none at md+ and while
+       signed out (see .mentor-fab / .mentor-tabbar in styles.css). -->
+  <button type="button" id="fab-add" class="mentor-fab" aria-label="Add mentee">
+    <svg viewBox="0 0 24 24" class="h-7 w-7" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+  <nav id="mentor-tabbar" class="mentor-tabbar" aria-label="Primary">
+    <button type="button" class="mentor-tab" data-tab="dashboard" data-action="nav" data-view="dashboard">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="13.5" width="7" height="7" rx="1.5"/></svg>
+      <span>Dashboard</span>
+    </button>
+    <button type="button" class="mentor-tab" data-tab="mentees" data-action="nav" data-view="mentees">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"/><path d="M16 4.8a3.3 3.3 0 0 1 0 6.4M18 14.8c1.9.7 3.1 2.4 3.5 5.2"/></svg>
+      <span>Mentees</span>
+    </button>
+    <button type="button" class="mentor-tab" data-tab="checkin" data-action="nav" data-view="checkin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="3.5" width="16" height="17" rx="2"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
+      <span>Check-In</span>
+    </button>
+    <button type="button" id="tabbar-more" class="mentor-tab" data-tab="more" aria-controls="sidebar" aria-expanded="false" aria-haspopup="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <span>More</span>
+    </button>
+  </nav>
 
   <div id="modal-root"></div>
 </body>

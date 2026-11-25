@@ -8,18 +8,33 @@ import {
   updateMyProfile, linkHelpRequestToEscalation,
 } from '../data.js';
 
-const INPUT = 'w-full border border-navy-200 rounded-lg px-3 py-2';
+// Below md: 44px tall controls and 16px text (no iOS focus zoom); md+ unchanged.
+const INPUT = 'w-full border border-navy-200 rounded-lg px-3 py-2 max-md:min-h-[44px] max-md:text-base';
+// Half-width inputs in the modal grids (stacked full-width on phones).
+const HALF_INPUT = 'border border-navy-200 rounded-lg px-3 py-2 max-md:w-full max-md:min-h-[44px] max-md:text-base';
+// Checkbox rows: the whole label is a comfortable tap target on phones.
+const CHECK_LABEL = 'flex items-center gap-2 max-md:min-h-[44px] max-md:py-1 cursor-pointer';
+const CHECK_BOX = 'max-md:h-5 max-md:w-5 shrink-0';
+// Form submit/cancel row. Phones: sticky in the thumb zone just above the tab
+// bar (.form-actions in styles.css), primary button fills the row. md+: the
+// original in-flow row.
+const ACTIONS_ROW = 'form-actions flex gap-3';
+const SUBMIT_BTN = 'btn-primary px-8 py-3 rounded-xl min-h-[44px] max-md:flex-1 max-md:px-4';
+// Modal submit/cancel row. Phones: pinned to the bottom of the sheet with
+// Cancel left / primary right (.sheet-actions). md+: the original row.
+const MODAL_ACTIONS = 'sheet-actions flex gap-2 pt-2 max-md:flex-row-reverse';
+const MODAL_BTN = 'max-md:min-h-[44px] max-md:flex-1';
 
 function shareToggle(name, label, hint) {
   return `
-    <label class="flex items-start gap-3 card p-4 border border-emerald-200">
-      <input type="checkbox" name="${name}" checked class="mt-1 rounded">
+    <label class="flex items-start gap-3 card p-4 border border-emerald-200 cursor-pointer">
+      <input type="checkbox" name="${name}" checked class="mt-1 rounded ${CHECK_BOX}">
       <span><span class="font-medium">${esc(label)}</span><span class="block text-xs text-navy-700/60">${esc(hint)}</span></span>
     </label>`;
 }
 
 function cancelButton() {
-  return `<button type="button" data-action="nav" data-view="dashboard" class="px-6 py-3 rounded-xl border">Cancel</button>`;
+  return `<button type="button" data-action="nav" data-view="dashboard" class="px-6 py-3 rounded-xl border min-h-[44px] max-md:px-5 max-md:bg-white">Cancel</button>`;
 }
 
 function noMenteesNotice() {
@@ -62,7 +77,7 @@ export function renderCheckInForm() {
         ${scoreRow('Lead Generation Activity', 'leadGenerationActivity')}
         ${scoreRow('LightSpeed VT Progress', 'lightSpeedVtProgress')}
         ${scoreRow('Lofty CRM Usage', 'loftyCrmUsage')}
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm mb-1">Transactions in Pipeline</label>
             <input type="number" name="transactionsInPipeline" min="0" class="${INPUT}">
@@ -109,7 +124,7 @@ export function renderCheckInForm() {
           <label class="block text-sm mb-1">Due Before Next Check-In</label>
           <input type="date" name="commitmentDueDate" class="${INPUT}">
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm mb-1">Next Check-In Date</label>
             <input type="date" name="nextCheckInDate" class="${INPUT}">
@@ -122,7 +137,7 @@ export function renderCheckInForm() {
       </div>
 
       <div class="card p-6 space-y-4 mentor-only">
-        <div class="flex items-center justify-between"><h3 class="font-medium">Mentor-only notes</h3>${MENTOR_ONLY_BADGE}</div>
+        <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-medium">Mentor-only notes</h3>${MENTOR_ONLY_BADGE}</div>
         <div>
           <label class="block text-sm mb-1">General Assessment Notes</label>
           <textarea name="generalAssessmentNotes" rows="3" class="${INPUT}"></textarea>
@@ -131,8 +146,8 @@ export function renderCheckInForm() {
           <label class="block text-sm mb-1">Verification Notes</label>
           <textarea name="verificationNotes" rows="2" class="${INPUT}"></textarea>
         </div>
-        <label class="flex items-center gap-2">
-          <input type="checkbox" name="escalationFlag" class="rounded">
+        <label class="${CHECK_LABEL}">
+          <input type="checkbox" name="escalationFlag" class="rounded ${CHECK_BOX}">
           <span>Escalation required</span>
         </label>
         <div>
@@ -144,8 +159,8 @@ export function renderCheckInForm() {
       ${shareToggle('sharedWithMentee', 'Share this check-in with the mentee',
         'They will see the scores, direction, commitment and next check-in in their portal. Mentor-only notes are never shared.')}
 
-      <div class="flex gap-3">
-        <button type="submit" class="btn-primary px-8 py-3 rounded-xl">Save Check-In</button>
+      <div class="${ACTIONS_ROW}">
+        <button type="submit" class="${SUBMIT_BTN}">Save Check-In</button>
         ${cancelButton()}
       </div>
     </form>
@@ -211,9 +226,9 @@ export function updateSelfCheckInHint() {
   if (!form || !box) return;
   const s = latestSelfCheckIn(form.menteeId.value);
   box.innerHTML = s ? `
-    <div class="rounded-lg bg-navy-50 p-3 text-sm flex items-center justify-between gap-3">
+    <div class="rounded-lg bg-navy-50 p-3 text-sm flex items-center justify-between gap-3 max-md:flex-col max-md:items-stretch">
       <span>Mentee self check-in for week of ${esc(s.week_of)}${s.reviewed_at ? ' (reviewed)' : ''}.</span>
-      <button type="button" data-action="prefill-from-self" data-id="${esc(s.id)}" class="text-xs px-3 py-1.5 rounded-lg border border-navy-200 bg-white">Prefill from self check-in</button>
+      <button type="button" data-action="prefill-from-self" data-id="${esc(s.id)}" class="text-xs px-3 py-1.5 rounded-lg border border-navy-200 bg-white max-md:min-h-[44px] max-md:text-sm">Prefill from self check-in</button>
     </div>` : '';
 }
 
@@ -295,8 +310,8 @@ export function renderEscalationForm() {
         </select>
       </div>
       <div class="text-xs text-navy-700/60">Escalations are never visible to the mentee.</div>
-      <div class="flex gap-3">
-        <button type="submit" class="btn-primary px-8 py-3 rounded-xl">Submit Escalation</button>
+      <div class="${ACTIONS_ROW}">
+        <button type="submit" class="${SUBMIT_BTN}">Submit Escalation</button>
         ${cancelButton()}
       </div>
     </form>
@@ -348,7 +363,7 @@ export function renderGraduationForm() {
           <label class="block text-sm mb-1">Mentee</label>
           <select name="menteeId" required class="${INPUT}">${menteeOptions}</select>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm mb-1">Date of Submission</label>
             <input type="date" name="dateOfSubmission" value="${today()}" required class="${INPUT}">
@@ -361,11 +376,11 @@ export function renderGraduationForm() {
       </div>
       <div class="card p-6 space-y-3">
         <h3 class="font-medium">Graduation Requirements (all must be confirmed)</h3>
-        <label class="flex items-center gap-2"><input type="checkbox" name="closedTransactionsConfirmed"> ${esc(required)} Closed Residential Transactions</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="lightSpeedVtCompleted"> All LightSpeed VT Modules Completed</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="nexaLendingConnected"> Connected with Nexa Lending Partner</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="loftyCrmProficient"> Proficient in Lofty CRM</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="mentorRecommends"> Mentor Graduation Recommendation</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="closedTransactionsConfirmed" class="${CHECK_BOX}"> ${esc(required)} Closed Residential Transactions</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="lightSpeedVtCompleted" class="${CHECK_BOX}"> All LightSpeed VT Modules Completed</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="nexaLendingConnected" class="${CHECK_BOX}"> Connected with Nexa Lending Partner</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="loftyCrmProficient" class="${CHECK_BOX}"> Proficient in Lofty CRM</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="mentorRecommends" class="${CHECK_BOX}"> Mentor Graduation Recommendation</label>
       </div>
       <div class="card p-6 space-y-4">
         <h3 class="font-medium">Closed Transactions (list up to ${esc(required)})</h3>
@@ -375,8 +390,8 @@ export function renderGraduationForm() {
         <h3 class="font-medium">Mentor Recommendation Statement</h3>
         <textarea name="mentorRecommendationStatement" rows="4" required placeholder="Why is this student ready to graduate?" class="${INPUT}"></textarea>
       </div>
-      <div class="flex gap-3">
-        <button type="submit" class="btn-primary px-8 py-3 rounded-xl">Submit for Approval</button>
+      <div class="${ACTIONS_ROW}">
+        <button type="submit" class="${SUBMIT_BTN}">Submit for Approval</button>
         ${cancelButton()}
       </div>
     </form>
@@ -432,7 +447,7 @@ export function renderFeedbackForm() {
           <label class="block text-sm mb-1">Mentee</label>
           <select name="menteeId" required class="${INPUT}">${menteeOptions}</select>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm mb-1">Date</label>
             <input type="date" name="date" value="${today()}" required class="${INPUT}">
@@ -469,7 +484,7 @@ export function renderFeedbackForm() {
         <textarea name="recommendedActions" rows="3" placeholder="What should the mentee do next?" class="${INPUT}"></textarea>
       </div>
       <div class="card p-6 space-y-4 mentor-only">
-        <div class="flex items-center justify-between"><h3 class="font-medium">Mentor-only</h3>${MENTOR_ONLY_BADGE}</div>
+        <div class="flex flex-wrap items-center justify-between gap-2"><h3 class="font-medium">Mentor-only</h3>${MENTOR_ONLY_BADGE}</div>
         <div>
           <label class="block text-sm mb-1">Overall Rating (1–5)</label>
           <select name="overallRating" class="${INPUT}">
@@ -488,8 +503,8 @@ export function renderFeedbackForm() {
       </div>
       ${shareToggle('sharedWithMentee', 'Share this feedback with the mentee',
         'They will see strengths, areas for improvement, observations and recommended actions. The rating and private notes are never shared.')}
-      <div class="flex gap-3">
-        <button type="submit" class="btn-primary px-8 py-3 rounded-xl">Save Feedback</button>
+      <div class="${ACTIONS_ROW}">
+        <button type="submit" class="${SUBMIT_BTN}">Save Feedback</button>
         ${cancelButton()}
       </div>
     </form>
@@ -531,7 +546,7 @@ export function renderKickoffForm() {
           <label class="block text-sm mb-1">Mentee</label>
           <select name="menteeId" required class="${INPUT}">${menteeOptions}</select>
         </div>
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label class="block text-sm mb-1">Date & Time</label>
             <input type="datetime-local" name="dateTime" required class="${INPUT}">
@@ -549,10 +564,10 @@ export function renderKickoffForm() {
       </div>
       <div class="card p-6 space-y-3">
         <h3 class="font-medium">Systems Activated</h3>
-        <label class="flex items-center gap-2"><input type="checkbox" name="sys_lofty"> Lofty CRM</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="sys_vt"> LightSpeed VT</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="sys_nexa"> Nexa Lending</label>
-        <label class="flex items-center gap-2"><input type="checkbox" name="sys_skyslope"> SkySlope</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="sys_lofty" class="${CHECK_BOX}"> Lofty CRM</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="sys_vt" class="${CHECK_BOX}"> LightSpeed VT</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="sys_nexa" class="${CHECK_BOX}"> Nexa Lending</label>
+        <label class="${CHECK_LABEL}"><input type="checkbox" name="sys_skyslope" class="${CHECK_BOX}"> SkySlope</label>
       </div>
       <div class="card p-6 space-y-4">
         <h3 class="font-medium">Agreements</h3>
@@ -561,8 +576,8 @@ export function renderKickoffForm() {
         <input type="date" name="nextCheckInDate" class="${INPUT}">
       </div>
       <div class="text-xs text-navy-700/60">Kickoff sessions are visible to the mentee in their portal.</div>
-      <div class="flex gap-3">
-        <button type="submit" class="btn-primary px-8 py-3 rounded-xl">Save Kickoff</button>
+      <div class="${ACTIONS_ROW}">
+        <button type="submit" class="${SUBMIT_BTN}">Save Kickoff</button>
         ${cancelButton()}
       </div>
     </form>
@@ -596,10 +611,15 @@ export function renderKickoffForm() {
 }
 
 // ---------------------------------------------------------------------------
-function modalShell(inner) {
+// md+: the original centered rounded card, no animation. Below md: a bottom
+// sheet (.sheet / .sheet-backdrop in styles.css) that slides up, has a grab
+// handle and rounded top corners, scrolls inside itself, and closes on the
+// backdrop (data-backdrop) or Cancel.
+export function modalShell(inner) {
   return `
-    <div class="fixed inset-0 bg-navy-900/60 z-50 flex items-center justify-center p-4" data-action="close-modal" data-backdrop="1">
-      <div class="bg-white rounded-2xl p-6 w-full max-w-md" data-modal-body>
+    <div class="sheet-backdrop fixed inset-0 bg-navy-900/60 z-50 flex items-center justify-center p-4 max-md:p-0 max-md:items-end" data-action="close-modal" data-backdrop="1">
+      <div class="sheet bg-white rounded-2xl p-6 w-full max-w-md max-md:max-w-none max-md:rounded-b-none max-md:rounded-t-3xl max-md:overflow-y-auto max-md:overscroll-contain" role="dialog" aria-modal="true" data-modal-body>
+        <div class="sheet-handle md:hidden" aria-hidden="true"></div>
         ${inner}
       </div>
     </div>`;
@@ -612,15 +632,15 @@ export function openAddMenteeModal() {
     <form id="new-mentee-form" class="space-y-3">
       <input name="fullName" placeholder="Full name" required class="${INPUT}">
       <input name="email" type="email" placeholder="Email (needed for the portal invite)" class="${INPUT}">
-      <input name="phone" placeholder="Phone" class="${INPUT}">
-      <div class="grid grid-cols-2 gap-3">
-        <input name="programStartDate" type="date" value="${today()}" class="border border-navy-200 rounded-lg px-3 py-2">
-        <select name="currentStage" class="border border-navy-200 rounded-lg px-3 py-2">${stageOptionsHtml(1)}</select>
+      <input name="phone" type="tel" autocomplete="tel" placeholder="Phone" class="${INPUT}">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <input name="programStartDate" type="date" value="${today()}" class="${HALF_INPUT}">
+        <select name="currentStage" class="${HALF_INPUT}">${stageOptionsHtml(1)}</select>
       </div>
       <textarea name="notes" placeholder="Private notes (mentor only)" rows="2" class="${INPUT}"></textarea>
-      <div class="flex gap-2 pt-2">
-        <button type="submit" class="btn-primary px-6 py-2 rounded-lg">Create</button>
-        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border">Cancel</button>
+      <div class="${MODAL_ACTIONS}">
+        <button type="submit" class="btn-primary px-6 py-2 rounded-lg ${MODAL_BTN}">Create</button>
+        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border ${MODAL_BTN}">Cancel</button>
       </div>
     </form>
   `);
@@ -688,10 +708,10 @@ export function openEditMenteeModal(id) {
     <form id="edit-mentee-form" class="space-y-3">
       <input name="fullName" placeholder="Full name" required value="${esc(m.fullName)}" class="${INPUT}">
       <input name="email" type="email" placeholder="Email (needed for the portal invite)" value="${esc(m.email || '')}" class="${INPUT}">
-      <input name="phone" placeholder="Phone" value="${esc(m.phone || '')}" class="${INPUT}">
-      <div class="grid grid-cols-2 gap-3">
-        <input name="programStartDate" type="date" value="${esc(m.programStartDate || '')}" class="border border-navy-200 rounded-lg px-3 py-2">
-        <select name="currentStage" class="border border-navy-200 rounded-lg px-3 py-2">${stageOptionsHtml(m.currentStage || 1)}</select>
+      <input name="phone" type="tel" autocomplete="tel" placeholder="Phone" value="${esc(m.phone || '')}" class="${INPUT}">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <input name="programStartDate" type="date" value="${esc(m.programStartDate || '')}" class="${HALF_INPUT}">
+        <select name="currentStage" class="${HALF_INPUT}">${stageOptionsHtml(m.currentStage || 1)}</select>
       </div>
       <div>
         <label class="block text-sm mb-1">Status</label>
@@ -704,9 +724,9 @@ export function openEditMenteeModal(id) {
           <div class="mb-1">${MENTOR_ONLY_BADGE}</div>
           <textarea name="notes" placeholder="Private notes (mentor only)" rows="3" class="${INPUT}">${esc(m.notes || '')}</textarea>
         </div>` : ''}
-      <div class="flex gap-2 pt-2">
-        <button type="submit" class="btn-primary px-6 py-2 rounded-lg">Save</button>
-        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border">Cancel</button>
+      <div class="${MODAL_ACTIONS}">
+        <button type="submit" class="btn-primary px-6 py-2 rounded-lg ${MODAL_BTN}">Save</button>
+        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border ${MODAL_BTN}">Cancel</button>
       </div>
     </form>
   `);
@@ -745,11 +765,11 @@ export function openProfileModal() {
     <p class="text-sm text-navy-700/60 mb-4">Your mentees see this in their portal.</p>
     <form id="profile-form" class="space-y-3">
       <input name="full_name" placeholder="Full name" value="${esc(p.full_name || '')}" class="${INPUT}">
-      <input name="phone" placeholder="Phone" value="${esc(p.phone || '')}" class="${INPUT}">
+      <input name="phone" type="tel" autocomplete="tel" placeholder="Phone" value="${esc(p.phone || '')}" class="${INPUT}">
       <input name="booking_url" type="url" placeholder="Booking link (https://…)" value="${esc(p.booking_url || '')}" class="${INPUT}">
-      <div class="flex gap-2 pt-2">
-        <button type="submit" class="btn-primary px-6 py-2 rounded-lg">Save</button>
-        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border">Cancel</button>
+      <div class="${MODAL_ACTIONS}">
+        <button type="submit" class="btn-primary px-6 py-2 rounded-lg ${MODAL_BTN}">Save</button>
+        <button type="button" data-action="close-modal" class="px-6 py-2 rounded-lg border ${MODAL_BTN}">Cancel</button>
       </div>
     </form>
   `);

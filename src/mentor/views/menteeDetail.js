@@ -32,7 +32,7 @@ function renderKickoffs(menteeId) {
     const systems = Array.isArray(k.systems_activated) ? k.systems_activated : [];
     const url = safeUrl(k.meeting_link);
     const link = url
-      ? `<div class="text-sm mt-1"><span class="text-navy-700/50">Meeting link:</span> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="underline">${esc(url)}</a></div>`
+      ? `<div class="text-sm mt-1"><span class="text-navy-700/50">Meeting link:</span> <a href="${esc(url)}" target="_blank" rel="noopener noreferrer" class="underline break-all">${esc(url)}</a></div>`
       : detailLine('Meeting link', k.meeting_link);
     return `
       <div class="card p-5">
@@ -99,11 +99,11 @@ function renderPortalCard(m, canManage) {
   if (canManage) {
     if (m.portalAccess === 'invited' || m.portalAccess === 'active') {
       buttons = `
-        <button type="button" data-action="portal" data-portal-action="resend" data-mentee-id="${id}" class="text-sm px-3 py-2 rounded-lg border border-navy-200">Resend link</button>
-        <button type="button" data-action="portal" data-portal-action="revoke" data-mentee-id="${id}" class="text-sm px-3 py-2 rounded-lg border border-red-200 text-red-700">Revoke access</button>`;
+        <button type="button" data-action="portal" data-portal-action="resend" data-mentee-id="${id}" class="text-sm px-3 py-2 rounded-lg border border-navy-200 max-md:min-h-[44px]">Resend link</button>
+        <button type="button" data-action="portal" data-portal-action="revoke" data-mentee-id="${id}" class="text-sm px-3 py-2 rounded-lg border border-red-200 text-red-700 max-md:min-h-[44px]">Revoke access</button>`;
     } else {
       buttons = m.email
-        ? `<button type="button" data-action="portal" data-portal-action="invite" data-mentee-id="${id}" class="text-sm px-3 py-2 rounded-lg bg-gold-500 text-navy-900 font-medium">Invite to portal</button>`
+        ? `<button type="button" data-action="portal" data-portal-action="invite" data-mentee-id="${id}" class="text-sm px-3 py-2 rounded-lg bg-gold-500 text-navy-900 font-medium max-md:min-h-[44px]">Invite to portal</button>`
         : `<div class="text-xs text-navy-700/60">Add an email address to invite this mentee.</div>`;
     }
   }
@@ -121,8 +121,8 @@ function renderPortalCard(m, canManage) {
       ${canManage ? `
         <div class="mt-4 pt-4 border-t border-navy-100 space-y-2">
           <div class="text-xs text-navy-700/60">Check-ins and feedback written before the portal existed are hidden from the mentee until you share them.</div>
-          <button type="button" data-action="share-all-checkins" data-mentee-id="${id}" class="w-full text-sm px-3 py-2 rounded-lg border border-navy-200" ${unsharedCheckIns ? '' : 'disabled'}>Share all past check-ins (${unsharedCheckIns} hidden)</button>
-          <button type="button" data-action="share-all-feedback" data-mentee-id="${id}" class="w-full text-sm px-3 py-2 rounded-lg border border-navy-200" ${unsharedFeedback ? '' : 'disabled'}>Share all past feedback (${unsharedFeedback} hidden)</button>
+          <button type="button" data-action="share-all-checkins" data-mentee-id="${id}" class="w-full text-sm px-3 py-2 rounded-lg border border-navy-200 max-md:min-h-[44px]" ${unsharedCheckIns ? '' : 'disabled'}>Share all past check-ins (${unsharedCheckIns} hidden)</button>
+          <button type="button" data-action="share-all-feedback" data-mentee-id="${id}" class="w-full text-sm px-3 py-2 rounded-lg border border-navy-200 max-md:min-h-[44px]" ${unsharedFeedback ? '' : 'disabled'}>Share all past feedback (${unsharedFeedback} hidden)</button>
         </div>` : ''}
     </div>
   `;
@@ -138,11 +138,11 @@ function renderSelfCheckIns(menteeId, canManage) {
   if (!rows.length) return `<div class="card p-6 text-sm text-navy-700/50">No self check-ins submitted yet.</div>`;
   return rows.map(s => `
     <div class="card p-5">
-      <div class="flex items-center justify-between mb-2 gap-2">
+      <div class="flex flex-wrap items-center justify-between mb-2 gap-2">
         <div class="font-medium">Week of ${esc(formatDate(s.week_of))}${s.help_needed ? ' <span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 ml-1">Asked for help</span>' : ''}</div>
         ${s.reviewed_at
           ? `<span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">Reviewed ${esc(formatDate(s.reviewed_at))}</span>`
-          : (canManage ? `<button type="button" data-action="review-self-checkin" data-id="${esc(s.id)}" class="text-xs px-3 py-1.5 rounded-lg bg-gold-500 text-navy-900 font-medium">Mark reviewed</button>` : '<span class="text-xs text-navy-700/50">Awaiting review</span>')}
+          : (canManage ? `<button type="button" data-action="review-self-checkin" data-id="${esc(s.id)}" class="text-xs px-3 py-1.5 rounded-lg bg-gold-500 text-navy-900 font-medium max-md:min-h-[44px] max-md:text-sm">Mark reviewed</button>` : '<span class="text-xs text-navy-700/50">Awaiting review</span>')}
       </div>
       <div class="flex flex-wrap items-center mb-1">
         ${scoreLine('Lead Gen', s.lead_gen_self_score)}${scoreLine('VT', s.vt_self_score)}${scoreLine('CRM', s.lofty_self_score)}
@@ -176,21 +176,21 @@ function renderHelpRequests(menteeId, canManage, canEscalate) {
     const closed = ['resolved', 'cancelled'].includes(h.status);
     return `
       <div class="card p-5">
-        <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div class="font-medium">${esc(HELP_CATEGORY_LABELS[h.category] || h.category)}${h.urgency === 'urgent' ? ' <span class="text-xs px-2 py-0.5 rounded-full bg-red-600 text-white ml-1">Urgent</span>' : ''}</div>
           <span class="text-xs px-2 py-0.5 rounded-full ${HELP_STATUS_CLASS[h.status] || 'bg-gray-100'}">${esc(h.status)}</span>
         </div>
-        <div class="text-sm whitespace-pre-wrap">${esc(h.message)}</div>
+        <div class="text-sm whitespace-pre-wrap break-words">${esc(h.message)}</div>
         <div class="text-xs text-navy-700/40 mt-1">${esc(formatDateTime(h.created_at))}</div>
         ${h.category === 'personal' ? '<div class="text-xs mt-2 text-red-700">Personal / wellbeing request: reach out directly. Crisis line: call or text 988.</div>' : ''}
         ${h.mentor_response ? `<div class="text-sm mt-3 p-3 rounded-lg bg-navy-50"><span class="text-navy-700/50">Your response:</span> ${esc(h.mentor_response)}</div>` : ''}
         ${canManage && !closed ? `
           <div class="mt-3 space-y-2">
-            <textarea id="hr-resp-${id}" rows="2" placeholder="Response the mentee will see" class="w-full border border-navy-200 rounded-lg px-3 py-2 text-sm">${esc(h.mentor_response || '')}</textarea>
-            <div class="flex gap-2">
-              <button type="button" data-action="help-respond" data-id="${id}" data-status="acknowledged" class="text-xs px-3 py-1.5 rounded-lg border border-navy-200">Send / acknowledge</button>
-              <button type="button" data-action="help-respond" data-id="${id}" data-status="resolved" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white">Resolve</button>
-              ${canEscalate && h.status !== 'escalated' ? `<button type="button" data-action="convert-help" data-id="${id}" class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-700">Convert to escalation</button>` : ''}
+            <textarea id="hr-resp-${id}" rows="2" placeholder="Response the mentee will see" class="w-full border border-navy-200 rounded-lg px-3 py-2 text-sm max-md:text-base">${esc(h.mentor_response || '')}</textarea>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" data-action="help-respond" data-id="${id}" data-status="acknowledged" class="text-xs px-3 py-1.5 rounded-lg border border-navy-200 max-md:min-h-[44px] max-md:text-sm">Send / acknowledge</button>
+              <button type="button" data-action="help-respond" data-id="${id}" data-status="resolved" class="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white max-md:min-h-[44px] max-md:text-sm">Resolve</button>
+              ${canEscalate && h.status !== 'escalated' ? `<button type="button" data-action="convert-help" data-id="${id}" class="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-700 max-md:min-h-[44px] max-md:text-sm">Convert to escalation</button>` : ''}
             </div>
           </div>` : ''}
       </div>
@@ -206,11 +206,11 @@ function renderFeedbackList(menteeId) {
     const own = state.user && f.user_id === state.user.id;
     return `
       <div class="card p-5">
-        <div class="flex items-center justify-between gap-2 mb-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
           <div class="font-medium">${esc(formatDate(f.date))} · ${esc(f.feedback_type)}</div>
           <div class="flex items-center gap-2">
             ${sharedBadge(f.shared_with_mentee)}
-            ${own ? `<button type="button" data-action="toggle-share-feedback" data-id="${esc(f.id)}" data-shared="${f.shared_with_mentee ? '1' : '0'}" class="text-xs underline">${f.shared_with_mentee ? 'Hide from mentee' : 'Share'}</button>` : ''}
+            ${own ? `<button type="button" data-action="toggle-share-feedback" data-id="${esc(f.id)}" data-shared="${f.shared_with_mentee ? '1' : '0'}" class="text-xs underline max-md:min-h-[44px] max-md:px-2">${f.shared_with_mentee ? 'Hide from mentee' : 'Share'}</button>` : ''}
           </div>
         </div>
         ${detailLine('Strengths', f.strengths)}
@@ -248,7 +248,7 @@ export function renderMenteeDetail(id) {
       <div class="lg:col-span-1 space-y-6">
         <div class="card p-6">
           <h3 class="font-medium mb-4">Profile</h3>
-          <div class="space-y-3 text-sm">
+          <div class="space-y-3 text-sm break-words">
             <div><span class="text-navy-700/50">Email</span><div>${esc(m.email) || '—'}</div></div>
             <div><span class="text-navy-700/50">Phone</span><div>${esc(m.phone) || '—'}</div></div>
             <div><span class="text-navy-700/50">Status</span><div class="mt-1"><span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}">${esc(m.status)}</span></div></div>
@@ -260,13 +260,13 @@ export function renderMenteeDetail(id) {
         ${isMyMentee(m.id) ? `
           <button type="button" data-action="nav" data-view="checkin" data-mentee-id="${mid}" class="w-full btn-primary py-3 rounded-xl">New Check-In</button>
           <div class="grid grid-cols-2 gap-2">
-            <button type="button" data-action="nav" data-view="feedback" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Feedback</button>
-            <button type="button" data-action="nav" data-view="kickoff" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Kickoff</button>
-            <button type="button" data-action="nav" data-view="escalation" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Escalate</button>
-            <button type="button" data-action="nav" data-view="graduation" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm">Recommend graduation</button>
+            <button type="button" data-action="nav" data-view="feedback" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm max-md:min-h-[44px] max-md:px-2">Feedback</button>
+            <button type="button" data-action="nav" data-view="kickoff" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm max-md:min-h-[44px] max-md:px-2">Kickoff</button>
+            <button type="button" data-action="nav" data-view="escalation" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm max-md:min-h-[44px] max-md:px-2">Escalate</button>
+            <button type="button" data-action="nav" data-view="graduation" data-mentee-id="${mid}" class="py-2 rounded-xl border text-sm max-md:min-h-[44px] max-md:px-2">Recommend graduation</button>
           </div>` : ''}
-        ${canManage ? `<button type="button" data-action="edit-mentee" data-mentee-id="${mid}" class="w-full py-2 rounded-xl border text-sm">Edit Mentee</button>` : ''}
-        <button type="button" data-action="export-summary" data-mentee-id="${mid}" class="w-full py-2 rounded-xl border text-sm">Export Summary</button>
+        ${canManage ? `<button type="button" data-action="edit-mentee" data-mentee-id="${mid}" class="w-full py-2 rounded-xl border text-sm max-md:min-h-[44px]">Edit Mentee</button>` : ''}
+        <button type="button" data-action="export-summary" data-mentee-id="${mid}" class="w-full py-2 rounded-xl border text-sm max-md:min-h-[44px]">Export Summary</button>
         ${renderPortalCard(m, canManage)}
         <div class="card p-6">
           <h3 class="font-medium mb-3">Graduation Readiness</h3>
@@ -303,7 +303,7 @@ export function renderMenteeDetail(id) {
       const hasPrivate = c.generalAssessmentNotes || c.verificationNotes || c.escalationFlag;
       html += `
         <div class="card p-5">
-          <div class="flex items-center justify-between mb-3 gap-2">
+          <div class="flex flex-wrap items-center justify-between mb-3 gap-2">
             <div class="font-medium">Check-In #${esc(c.checkInNumber)} · ${esc(formatDate(c.date))}${c.meetingFormat ? ` · ${esc(c.meetingFormat)}` : ''}</div>
             <div class="flex gap-2">
               ${c.leadGenerationActivity ? `<span class="score-pill score-${esc(c.leadGenerationActivity)}">${esc(c.leadGenerationActivity)}</span>` : ''}
@@ -313,7 +313,7 @@ export function renderMenteeDetail(id) {
           </div>
           <div class="flex items-center gap-2 mb-2">
             ${sharedBadge(c.sharedWithMentee)}
-            ${own ? `<button type="button" data-action="toggle-share-checkin" data-id="${esc(c.id)}" data-shared="${c.sharedWithMentee ? '1' : '0'}" class="text-xs underline">${c.sharedWithMentee ? 'Hide from mentee' : 'Share'}</button>` : ''}
+            ${own ? `<button type="button" data-action="toggle-share-checkin" data-id="${esc(c.id)}" data-shared="${c.sharedWithMentee ? '1' : '0'}" class="text-xs underline max-md:min-h-[44px] max-md:px-2">${c.sharedWithMentee ? 'Hide from mentee' : 'Share'}</button>` : ''}
           </div>
           ${c.studentCommitment ? `<div class="text-sm"><span class="text-navy-700/50">Commitment:</span> ${esc(c.studentCommitment)}${c.commitmentDueDate ? ` <span class="text-navy-700/50">(due ${esc(formatDate(c.commitmentDueDate))})</span>` : ''}</div>` : ''}
           ${detailLine('Direction given', c.specificDirectionGiven)}

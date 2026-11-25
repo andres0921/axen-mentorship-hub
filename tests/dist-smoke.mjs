@@ -65,6 +65,15 @@ for (const page of PAGES) {
   }
   if (scripts === 0) fail(`${page}: no local module script found`);
   if (/\/src\//.test(html)) fail(`${page}: still references /src/ (unbuilt)`);
+  // mentor app: responsive chrome (hamburger drawer below md, fixed sidebar md+)
+  if (page === 'index.html') {
+    if (!/id="nav-toggle"[^>]*aria-controls="sidebar"/.test(html)) fail('index.html: hamburger #nav-toggle (aria-controls="sidebar") missing');
+    if (!/<aside\b[^>]*id="sidebar"/.test(html)) fail('index.html: <aside id="sidebar"> missing');
+    if (!/<main\b[^>]*\bmd:ml-64\b/.test(html)) fail('index.html: <main> should offset with md:ml-64');
+    if (!/id="mentor-tabbar"/.test(html)) fail('index.html: mobile tab bar #mentor-tabbar missing');
+    if (!/name="viewport"[^>]*viewport-fit=cover/.test(html)) fail('index.html: viewport must include viewport-fit=cover');
+    if (!/<link\b[^>]*rel="manifest"[^>]*href="\/manifest\.webmanifest"/.test(html)) fail('index.html: manifest link missing');
+  }
 }
 
 // 3. secrets / legacy leftovers in ANY output file
@@ -90,6 +99,23 @@ for (const file of files) {
   if (/cdn\.tailwindcss\.com|cdn\.jsdelivr\.net/.test(text)) fail(`${rel}: references a runtime CDN`);
 }
 if (existsSync(join(dist, 'js/app.js'))) fail('legacy js/app.js shipped in dist');
+
+// 3b. web app manifest: same-origin, valid JSON, icons present (CSP default-src 'self')
+const manifestPath = join(dist, 'manifest.webmanifest');
+if (!existsSync(manifestPath)) fail('missing dist/manifest.webmanifest');
+else {
+  try {
+    const m = JSON.parse(readFileSync(manifestPath, 'utf8'));
+    if (m.start_url !== '/' || m.display !== 'standalone') fail('manifest: start_url "/" and display "standalone" expected');
+    for (const icon of m.icons || []) {
+      if (!icon.src.startsWith('/')) fail(`manifest: icon ${icon.src} must be same-origin`);
+      else if (!existsSync(join(dist, icon.src))) fail(`manifest: icon file missing ${icon.src}`);
+    }
+    if (!(m.icons || []).some(i => i.sizes === '512x512')) fail('manifest: 512x512 icon missing');
+  } catch (err) {
+    fail(`manifest unreadable: ${err.message}`);
+  }
+}
 
 // 4. vercel.json headers
 try {
