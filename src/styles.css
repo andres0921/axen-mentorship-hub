@@ -1,4 +1,8 @@
-/* Axen Mentorship Hub — Premium styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Axen Mentorship Hub — Premium styles (moved from css/styles.css) */
 
 :root {
   --gold: #c9a227;
@@ -44,9 +48,7 @@ body { font-feature-settings: "ss01", "cv11"; }
   box-shadow: 0 10px 25px -5px rgba(12,20,36,0.08);
 }
 
-.progress-ring {
-  transform: rotate(-90deg);
-}
+.progress-ring { transform: rotate(-90deg); }
 
 .section-title {
   font-family: 'Playfair Display', serif;
@@ -75,6 +77,8 @@ input:focus, textarea:focus, select:focus {
   transform: translateY(-1px);
 }
 
+.btn-primary:disabled, button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
 .timeline-dot {
   width: 12px;
   height: 12px;
@@ -83,10 +87,18 @@ input:focus, textarea:focus, select:focus {
   box-shadow: 0 0 0 4px rgba(201,162,39,0.2);
 }
 
-/* Smooth view transitions */
-.view-enter {
-  animation: fadeSlide 0.25s ease;
+.mentor-only {
+  border-left: 3px solid #94690d;
+  background: #fdf9ec;
 }
+
+/* Mentee portal: room for the fixed bottom tab bar + iOS safe area */
+.pb-tabbar { padding-bottom: calc(5rem + env(safe-area-inset-bottom)); }
+.tabbar { padding-bottom: env(safe-area-inset-bottom); }
+.tab-btn.active { color: #c9a227; }
+
+/* Smooth view transitions */
+.view-enter { animation: fadeSlide 0.25s ease; }
 
 @keyframes fadeSlide {
   from { opacity: 0; transform: translateY(8px); }
