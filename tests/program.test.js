@@ -1,13 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { PROGRAM } from '../src/shared/config.js';
 import {
-  program, applyProgramSettings, loadProgramSettings, stageTarget, closedRequired,
+  program, applyProgramSettings, loadProgramSettings, closedRequired,
   scoreThreshold, stageCount, computeGraduationProgress,
 } from '../src/shared/program.js';
 
 const DEFAULT_ROW = {
   stage_count: PROGRAM.stageCount,
-  stage_targets: PROGRAM.stageTargets,
   graduation_closed_required: PROGRAM.graduationClosedRequired,
   graduation_score_threshold: PROGRAM.graduationScoreThreshold,
 };
@@ -26,17 +25,16 @@ describe('program config', () => {
   it('config.js defaults are the single fallback source', () => {
     expect(PROGRAM.stageCount).toBe(4);
     expect(Object.isFrozen(PROGRAM)).toBe(true);
-    expect(stageTarget(1)).toBe(PROGRAM.stageTargets[1]);
+    expect(PROGRAM.graduationClosedRequired).toBe(4);
+    expect('stageTargets' in PROGRAM).toBe(false);
     expect(closedRequired()).toBe(PROGRAM.graduationClosedRequired);
     expect(scoreThreshold()).toBe(PROGRAM.graduationScoreThreshold);
     expect(stageCount()).toBe(4);
   });
 
   it('program_settings row overrides the defaults', () => {
-    applyProgramSettings({ stage_count: 3, stage_targets: { 1: 1, 2: 3, 3: 5 }, graduation_closed_required: 5, graduation_score_threshold: 3 });
+    applyProgramSettings({ stage_count: 3, graduation_closed_required: 5, graduation_score_threshold: 3 });
     expect(stageCount()).toBe(3);
-    expect(stageTarget(2)).toBe(3);
-    expect(stageTarget(4)).toBe('—');
     expect(closedRequired()).toBe(5);
     expect(scoreThreshold()).toBe(3);
     expect(program().source).toBe('db');

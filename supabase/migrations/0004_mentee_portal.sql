@@ -334,12 +334,12 @@ grant all on public.help_requests to service_role;
 
 -- ---------------------------------------------------------------------------
 -- program_settings: ONE row, admin-editable. Clients read it and fall back to
--- src/shared/config.js (PROGRAM). Values are NOT yet confirmed by Andres.
+-- src/shared/config.js (PROGRAM). Confirmed by Andres: 4 closed to graduate;
+-- there are no per-stage deal targets.
 -- ---------------------------------------------------------------------------
 create table if not exists public.program_settings (
   id                         smallint primary key default 1 check (id = 1),
   stage_count                int not null default 4 check (stage_count between 1 and 10),
-  stage_targets              jsonb not null default '{"1": 2, "2": 4, "3": 8, "4": 12}'::jsonb,
   graduation_closed_required int not null default 4 check (graduation_closed_required >= 0),
   graduation_score_threshold int not null default 4 check (graduation_score_threshold between 1 and 5),
   updated_at                 timestamptz not null default now(),
@@ -382,7 +382,7 @@ create policy program_settings_update_admin on public.program_settings
 
 revoke all on public.program_settings from anon, authenticated;
 grant select on public.program_settings to authenticated;
-grant update (stage_count, stage_targets, graduation_closed_required, graduation_score_threshold, updated_at, updated_by)
+grant update (stage_count, graduation_closed_required, graduation_score_threshold, updated_at, updated_by)
   on public.program_settings to authenticated;
 grant all on public.program_settings to service_role;
 

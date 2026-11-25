@@ -66,16 +66,15 @@ Other roles are managed the same way. A new mentor account starts as `pending`;
 promote it with `update public.profiles set role = 'mentor' where id = (select id from auth.users where lower(email) = lower('<their email>'));`.
 Role is never taken from user metadata, and API users can't write `profiles.role`.
 
-## Program numbers (unconfirmed)
+## Program numbers
 
-Stage targets (2/4/8/12 closed) and the graduation requirement (4 closed, scores ≥ 4)
-are **not yet confirmed**. They live in `public.program_settings` (one row, `id = 1`),
+Graduation requires **4 closed transactions** and scores ≥ 4 for LightSpeed VT and
+Lofty (4 closed confirmed by Andres; there are no per-stage deal targets). They live in `public.program_settings` (one row, `id = 1`),
 with `src/shared/config.js` `PROGRAM` as the client fallback. To change them:
 
 ```sql
 update public.program_settings
-   set stage_targets = '{"1": 2, "2": 4, "3": 8, "4": 12}',
-       graduation_closed_required = 4,
+   set graduation_closed_required = 4,
        graduation_score_threshold = 4
  where id = 1;
 ```

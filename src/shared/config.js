@@ -15,18 +15,16 @@ export const SITE_URL =
     ? window.location.origin
     : PROD_SITE_URL;
 
-// Program rules. SINGLE client-side source for stage targets and graduation
-// requirements (mentor and mentee UIs both read it via src/shared/program.js).
+// Program rules. SINGLE client-side source for graduation requirements (mentor
+// and mentee UIs both read it via src/shared/program.js).
 //
-// !! These values are NOT yet confirmed by Andres (plan §1.4: 2/4/8/12 stage
-// targets vs. 4 closed to graduate). The authoritative copy lives in the
-// database table public.program_settings (admin-editable); the apps load it at
-// start-up and only fall back to these defaults if it can't be read.
+// Confirmed by Andres (Nov 24, 2026): 4 closed transactions are required to
+// graduate. There are no per-stage deal targets. The authoritative copy lives
+// in the database table public.program_settings (admin-editable); the apps load
+// it at start-up and only fall back to these defaults if it can't be read.
 export const PROGRAM = Object.freeze({
   stageCount: 4,
-  // closed transactions targeted by the end of each stage
-  stageTargets: Object.freeze({ 1: 2, 2: 4, 3: 8, 4: 12 }),
-  // closed transactions required to graduate
+  // closed transactions required to graduate (confirmed: 4)
   graduationClosedRequired: 4,
   // a 1-5 score at or above this counts as "complete/proficient" for VT + Lofty
   graduationScoreThreshold: 4,

@@ -56,7 +56,7 @@ only change it once custom SMTP is on.
 ## (c) Supabase: URL configuration
 
 **Authentication → URL Configuration**:
-- **Site URL:** `https://mentorship.andresaviles.com`
+- **Site URL:** already set to `https://mentorship.andresaviles.com` (done, nothing to change).
 - **Redirect URLs:** add both
   - `https://mentorship.andresaviles.com/**`
   - `http://localhost:5173/**` (local dev with `npm run dev`)
@@ -210,6 +210,6 @@ Use a test address you control, e.g. a Gmail alias `andres.e.aviles94+mentee1@gm
 Clean up: delete the test mentee (and the test auth user under Authentication → Users).
 
 ## Still to confirm
-- **Program numbers:** stage targets 2/4/8/12 closed vs. 4 closed to graduate.
-  These are placeholders. See "Program numbers" in `supabase/migrations/README.md`
-  to change them (one DB row plus `src/shared/config.js`).
+- **Program numbers:** confirmed: 4 closed transactions to graduate, no per-stage
+  deal targets. To change it later, see "Program numbers" in
+  `supabase/migrations/README.md` (one DB row plus `src/shared/config.js`).

@@ -31,9 +31,9 @@ There is no public sign-up. Roles live in `public.profiles.role`
   until reviewed), sessions (kickoff plus shared check-ins and score trend),
   feedback ("Got it"), get help, account (phone, sign out).
 
-Program numbers (stage targets, graduation requirement) are **unconfirmed
-placeholders** in one place: `public.program_settings`, with
-`src/shared/config.js` `PROGRAM` as the fallback.
+Graduation requires **4 closed transactions** (confirmed by Andres; there are
+no per-stage deal targets). The number lives in one place, `public.program_settings`,
+with `src/shared/config.js` `PROGRAM` as the fallback.
 
 ## Project layout
 ```

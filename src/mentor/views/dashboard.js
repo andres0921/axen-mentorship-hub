@@ -1,6 +1,6 @@
 import { esc } from '../../shared/esc.js';
 import { formatDate, daysInProgram } from '../../shared/format.js';
-import { stageTarget } from '../../shared/program.js';
+import { closedRequired } from '../../shared/program.js';
 import { state, myMentees, isAdmin } from '../state.js';
 import { dom, setHeader, statusClass, latestCheckIn, previousCheckIn, trendArrow, avgScore } from './common.js';
 
@@ -84,7 +84,7 @@ export function renderDashboard() {
         <div class="flex items-start justify-between">
           <div>
             <div class="font-semibold text-lg">${esc(m.fullName)}</div>
-            <div class="text-sm text-navy-700/60 mt-0.5">Stage ${esc(m.currentStage) || '—'} · ${days} days · Target ${esc(stageTarget(m.currentStage))} closed</div>
+            <div class="text-sm text-navy-700/60 mt-0.5">Stage ${esc(m.currentStage) || '—'} · ${days} days · ${esc(latest?.totalClosed || 0)}/${esc(closedRequired())} closed to graduate</div>
           </div>
           <span class="text-xs px-2.5 py-1 rounded-full ${statusClass(m.status)}" data-status>${esc(m.status)}</span>
         </div>

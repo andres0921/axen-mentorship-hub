@@ -1,7 +1,7 @@
 // Mentee portal screens. Every value that came from the database goes through esc().
 import { esc, safeUrl } from '../../shared/esc.js';
 import { formatDate, formatDateTime, daysInProgram, weekOf, PRIOR_COMMITMENT_LABELS } from '../../shared/format.js';
-import { stageTarget, closedRequired, stageCount, scoreThreshold } from '../../shared/program.js';
+import { closedRequired, stageCount, scoreThreshold } from '../../shared/program.js';
 import { buildTrendChart } from '../../shared/chart.js';
 import { m } from '../data.js';
 
@@ -59,7 +59,7 @@ function programOverview() {
     <div class="${CARD}">
       <h3 class="font-medium mb-3">How the program works</h3>
       <ol class="space-y-2 text-sm">
-        ${stages.map(s => `<li class="flex justify-between gap-3"><span>Stage ${s}</span><span class="text-navy-700/60">target ${esc(stageTarget(s))} closed</span></li>`).join('')}
+        ${stages.map(s => `<li>Stage ${s}</li>`).join('')}
       </ol>
       <h4 class="font-medium mt-4 mb-2 text-sm">To graduate</h4>
       <ul class="text-sm space-y-1 list-disc ml-5">
@@ -170,7 +170,7 @@ export function homeScreen() {
           <span class="px-3 py-1 rounded-full bg-navy-100">${daysInProgram(me.program_start_date)} days in program</span>
           <span class="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800">${esc(STATUS_LABELS[me.status] || 'Active')}</span>
         </div>
-        ${stage ? `<div class="text-xs text-navy-700/60 mt-2">Stage ${esc(stage)} target: ${esc(stageTarget(stage))} closed transactions</div>` : ''}
+        <div class="text-xs text-navy-700/60 mt-2">Graduation requires ${esc(closedRequired())} closed transactions</div>
       </div>
 
       ${sci
