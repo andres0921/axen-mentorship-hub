@@ -83,7 +83,7 @@ local server (default socket `/tmp`, port `54329`; override with `PGHOST`, `PGPO
 `PGUSER`). It refuses non-local hosts.
 
 ## Deploying
-Vercel builds from `vercel.json` (`npm ci && npm run build`, output `dist/`). The
+Vercel builds from `vercel.json` (`npm ci && npm run build`, output `dist/`) and deploys automatically from GitHub pushes to `main`. The
 one-time Supabase, Resend and DNS setup, migration timing, admin role and Edge
 Function deploy are in **`docs/ANDRES_SETUP_STEPS.md`** and
 **`supabase/migrations/README.md`**.
